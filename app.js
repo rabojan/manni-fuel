@@ -161,6 +161,53 @@ async function fetchOsmStations() {
   throw new Error(`Ni bilo mogoče doseči nobenega Overpass strežnika.${protocolHint} ${lastError?.message || ''}`.trim());
 }
 
+async function fetchSloveniaPrices() {
+  const radiusM = Math.round(state.radiusKm * 1000);
+  const base = 'https://goriva.si/api/v1/search/';
+  let url = `${base}?position=${encodeURIComponent(state.lat + ',' + state.lon)}&radius=${radiusM}&franchise=&name=&o=`;
+  const stations = [];
+  let page = 0;
+
+  while (url && page < 20) {
+    page += 1;
+    const response = await fetch(url, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) throw new Error(`goriva.si HTTP ${response.status}`);
+    const data = await response.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+
+    for (const s of results) {
+      const lat = Number(s.lat);
+      const lon = Number(s.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const d = haversine(state.lat, state.lon, lat, lon);
+      if (d > state.radiusKm + 0.15) continue;
+
+      const rawPrice = s.prices?.dizel;
+      const diesel = rawPrice == null ? null : Number(String(rawPrice).replace(',', '.'));
+
+      stations.push({
+        id: `si-${s.pk}`,
+        lat,
+        lon,
+        name: String(s.name || 'Bencinska črpalka').trim(),
+        brand: '',
+        operator: '',
+        address: [s.address, s.zip_code].filter(Boolean).join(', '),
+        diesel: Number.isFinite(diesel) && diesel > 0 ? diesel : null,
+        priceUpdated: null,
+        priceSource: 'goriva.si · Ministrstvo za gospodarstvo',
+        distanceKm: Number.isFinite(Number(s.distance)) ? Number(s.distance) / 1000 : d
+      });
+    }
+
+    url = data.next || null;
+  }
+
+  return stations;
+}
+
 async function fetchGermanyPrices() {
   if (!state.tankerKey) return [];
   const radius = Math.min(state.radiusKm, 25); // Tankerkönig list endpoint max radius is limited.
@@ -247,18 +294,35 @@ async function loadStations() {
       state.map.fitBounds(state.circle.getBounds(), { padding:[20,20] });
     }
 
-    const [osm, country] = await Promise.all([fetchOsmStations(), detectCountryCode()]);
+    const country = await detectCountryCode();
+    let osm = [];
     let priced = [];
+    let priceWarning = '';
 
-    if (country === 'DE' && state.tankerKey) {
-      priced = await fetchGermanyPrices();
-    } else if (country === 'ES') {
-      try { priced = await fetchSpainPrices(); } catch (e) { console.warn('Spain price API:', e); }
+    // Country adapters: each country can provide station-level prices in one common format.
+    // Slovenia is now fully connected to the official goriva.si REST API.
+    if (country === 'SI') {
+      try {
+        priced = await fetchSloveniaPrices();
+      } catch (e) {
+        console.warn('Slovenia price API:', e);
+        priceWarning = ' · cene goriva.si trenutno niso dosegljive';
+      }
+      // OSM remains a fallback for station locations and can fill any rare gaps.
+      try { osm = await fetchOsmStations(); } catch (e) { console.warn('OSM fallback:', e); }
+    } else {
+      osm = await fetchOsmStations();
+      if (country === 'DE' && state.tankerKey) {
+        priced = await fetchGermanyPrices();
+      } else if (country === 'ES') {
+        try { priced = await fetchSpainPrices(); } catch (e) { console.warn('Spain price API:', e); }
+      }
     }
 
     state.stations = mergeStations(osm, priced).filter(s => s.distanceKm <= state.radiusKm + 0.1);
     renderStations();
-    els.status.textContent = `${state.stations.length} črpalk v območju ${state.radiusKm} km${country ? ` · ${country}` : ''}`;
+    const pricedCount = state.stations.filter(s => s.diesel != null).length;
+    els.status.textContent = `${state.stations.length} črpalk · ${pricedCount} s ceno · ${state.radiusKm} km${country ? ` · ${country}` : ''}${priceWarning}`;
   } catch (err) {
     console.error(err);
     const detail = escapeHtml(err?.message || 'Neznana napaka');

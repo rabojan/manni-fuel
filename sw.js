@@ -1,4 +1,4 @@
-const CACHE = 'camper-fuel-v2';
+const CACHE = 'manni-fuel-v3';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.json'];
 
 self.addEventListener('install', event => {

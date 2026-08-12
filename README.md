@@ -1,4 +1,4 @@
-# Camper Fuel
+# Manni Fuel
 
 Mobilna PWA spletna aplikacija za avtodom.
 
