@@ -1,5 +1,9 @@
-# Manni Fuel 2.5 — cache reset mobile final
+# Manni Fuel 2.6 — mobile fixes
 
-Ta verzija prisilno odstrani stare Service Worker cache podatke, da Safari/iPhone ne prikazuje starega vmesnika.
-
-Potrjeni UI: oranžen Manni's World header, zemljevid kot glavni element, spodnji panel z eno črpalko v osnovnem položaju, največ 50 % zaslona ob potegu, brez Calculate ETAs.
+- marker clustering pri oddaljenem zemljevidu
+- samodejno iskanje po premiku/zoomu zemljevida
+- delujoč bottom sheet: spodaj ena črpalka, zgoraj največ 50 % zaslona
+- Diesel je statičen prikaz (ni več okna, ker je trenutno na voljo samo B7)
+- stabilno razvrščanje brez brisanja rezultatov
+- Manni's World splash je prikazan 5 sekund
+- Cloudflare Worker je privzeto nastavljen

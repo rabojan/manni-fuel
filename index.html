@@ -10,7 +10,9 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="styles.css?v=2.5.1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="styles.css?v=2.6.0" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -28,7 +30,7 @@
 
     <div class="top-controls">
       <button id="refreshBtn" class="filter-chip refresh-chip" aria-label="Osveži">↻</button>
-      <button id="fuelBtn" class="filter-chip fuel-chip">⛽ Diesel <span>⌄</span></button>
+      <div class="filter-chip fuel-chip" aria-label="Gorivo: Diesel">⛽ Diesel</div>
       <div class="filter-chip price-chip"><span class="chip-label">Najnižja</span><strong id="bestPrice">—</strong></div>
       <div class="filter-chip sort-chip">
         <select id="sortSelect" aria-label="Razvrsti">
@@ -39,19 +41,17 @@
     </div>
 
     <button id="locateBtn" class="floating-btn" aria-label="Moja lokacija">➤</button>
-    <button id="searchAreaBtn" class="search-area-btn hidden">⛽ Poišči na tem območju</button>
 
     <section id="sheet" class="bottom-sheet sheet-low" aria-label="Bencinske črpalke">
-      <div id="sheetHandle" class="sheet-handle-wrap" aria-label="Povleci seznam">
-        <div class="sheet-handle"></div>
-      </div>
-
-      <div class="sheet-head">
+      <div id="sheetDragZone" class="sheet-drag-zone" aria-label="Povleci seznam">
+        <div class="sheet-handle-wrap"><div class="sheet-handle"></div></div>
+        <div class="sheet-head">
         <div>
           <h1>Bencinske črpalke</h1>
           <p id="updatedText">Nalagam podatke …</p>
         </div>
-        <div class="sheet-hint">Povleci ↑</div>
+        <button id="sheetToggle" class="sheet-hint" type="button">Povleci ↑</button>
+        </div>
       </div>
 
       <div id="statusBar" class="status-bar">Pridobivam tvojo lokacijo …</div>
@@ -98,6 +98,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
   // Manni Fuel 2.5: one-time cache reset so iPhone/Safari cannot keep the old UI.
   (async function(){
@@ -113,6 +114,6 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="app.js?v=2.5.1"></script>
+<script src="app.js?v=2.6.0"></script>
 </body>
 </html>
