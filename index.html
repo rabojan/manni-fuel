@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#111827" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Manni Fuel</title>
+  <title>Manni Fuel — Evropa</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="styles.css" />
@@ -43,7 +43,7 @@
     <section class="list-head">
       <div>
         <h2>Bencinske črpalke</h2>
-        <p id="listInfo">Razvrščeno po ceni, nato oddaljenosti.</p>
+        <p id="listInfo">Evropa · centralni podatkovni vir</p>
       </div>
       <select id="sortSelect" aria-label="Razvrsti">
         <option value="price">Najcenejše</option>
@@ -77,18 +77,14 @@
       <label class="field">
         <span>Gorivo</span>
         <select id="fuelSelect">
-          <option value="diesel" selected>Diesel</option>
+          <option value="B7" selected>Diesel B7</option>
         </select>
       </label>
 
-      <details class="advanced">
-        <summary>Napredno – Nemčija</summary>
-        <label class="field">
-          <span>Tankerkönig API ključ</span>
-          <input id="tankerKey" type="password" placeholder="Neobvezno" autocomplete="off" />
-          <small>Za aktualne cene v Nemčiji potrebuješ brezplačen API ključ Tankerkönig.</small>
-        </label>
-      </details>
+      <div class="field">
+        <span>Podatkovni sistem</span>
+        <small>Manni Fuel uporablja centralni evropski vir Pumperly. Posamezne države se v ozadju osvežujejo iz državnih in drugih lokalnih virov.</small>
+      </div>
 
       <button id="saveSettingsBtn" value="default" class="primary-btn wide">Shrani nastavitve</button>
     </form>

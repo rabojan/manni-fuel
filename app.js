@@ -2,13 +2,15 @@ const state = {
   lat: null,
   lon: null,
   radiusKm: Number(localStorage.getItem('radiusKm') || 20),
-  fuel: localStorage.getItem('fuel') || 'diesel',
-  tankerKey: localStorage.getItem('tankerKey') || '',
+  fuel: 'B7',
   stations: [],
   markers: [],
   userMarker: null,
   circle: null,
-  map: null
+  map: null,
+  rates: { EUR: 1 },
+  ratesDate: null,
+  dataRoute: ''
 };
 
 const els = {
@@ -18,11 +20,26 @@ const els = {
   radiusLabel: document.getElementById('radiusLabel'),
   radiusSelect: document.getElementById('radiusSelect'),
   fuelSelect: document.getElementById('fuelSelect'),
-  tankerKey: document.getElementById('tankerKey'),
   settings: document.getElementById('settingsDialog'),
   sort: document.getElementById('sortSelect'),
-  refresh: document.getElementById('refreshBtn')
+  refresh: document.getElementById('refreshBtn'),
+  listInfo: document.getElementById('listInfo')
 };
+
+const EUROPE = {
+  ES:['🇪🇸','Španija'], FR:['🇫🇷','Francija'], DE:['🇩🇪','Nemčija'], IT:['🇮🇹','Italija'], GB:['🇬🇧','Združeno kraljestvo'],
+  AT:['🇦🇹','Avstrija'], PT:['🇵🇹','Portugalska'], SI:['🇸🇮','Slovenija'], NL:['🇳🇱','Nizozemska'], BE:['🇧🇪','Belgija'],
+  LU:['🇱🇺','Luksemburg'], RO:['🇷🇴','Romunija'], GR:['🇬🇷','Grčija'], IE:['🇮🇪','Irska'], HR:['🇭🇷','Hrvaška'],
+  CH:['🇨🇭','Švica'], PL:['🇵🇱','Poljska'], CZ:['🇨🇿','Češka'], HU:['🇭🇺','Madžarska'], BG:['🇧🇬','Bolgarija'],
+  SK:['🇸🇰','Slovaška'], DK:['🇩🇰','Danska'], SE:['🇸🇪','Švedska'], NO:['🇳🇴','Norveška'], RS:['🇷🇸','Srbija'],
+  FI:['🇫🇮','Finska'], EE:['🇪🇪','Estonija'], LV:['🇱🇻','Latvija'], LT:['🇱🇹','Litva'], BA:['🇧🇦','BiH'], MK:['🇲🇰','Severna Makedonija']
+};
+
+const WRAPPERS = [
+  { name:'Pumperly neposredno', wrap:u=>u },
+  { name:'Pumperly prek AllOrigins', wrap:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u) },
+  { name:'Pumperly prek corsproxy.io', wrap:u=>'https://corsproxy.io/?url='+encodeURIComponent(u) }
+];
 
 function initMap() {
   state.map = L.map('map', { zoomControl: true }).setView([46.15, 14.99], 8);
@@ -32,21 +49,17 @@ function initMap() {
   }).addTo(state.map);
 }
 
-function saveSettings() {
-  state.radiusKm = Number(els.radiusSelect.value);
-  state.fuel = els.fuelSelect.value;
-  state.tankerKey = els.tankerKey.value.trim();
-  localStorage.setItem('radiusKm', String(state.radiusKm));
-  localStorage.setItem('fuel', state.fuel);
-  localStorage.setItem('tankerKey', state.tankerKey);
-  updateLabels();
-}
-
 function updateLabels() {
   els.radiusLabel.textContent = `${state.radiusKm} km`;
   els.radiusSelect.value = String(state.radiusKm);
   els.fuelSelect.value = state.fuel;
-  els.tankerKey.value = state.tankerKey;
+}
+
+function saveSettings() {
+  state.radiusKm = Number(els.radiusSelect.value);
+  state.fuel = els.fuelSelect.value;
+  localStorage.setItem('radiusKm', String(state.radiusKm));
+  updateLabels();
 }
 
 function haversine(lat1, lon1, lat2, lon2) {
@@ -64,7 +77,6 @@ function googleNavUrl(station) {
 function setPosition(lat, lon, accuracy) {
   state.lat = lat;
   state.lon = lon;
-
   if (state.userMarker) state.map.removeLayer(state.userMarker);
   if (state.circle) state.map.removeLayer(state.circle);
 
@@ -72,14 +84,9 @@ function setPosition(lat, lon, accuracy) {
   state.userMarker = L.marker([lat, lon], { icon }).addTo(state.map).bindPopup('Tvoja lokacija');
   state.circle = L.circle([lat, lon], {
     radius: state.radiusKm * 1000,
-    color: '#2563eb',
-    weight: 1,
-    fillColor: '#2563eb',
-    fillOpacity: 0.05
+    color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: 0.05
   }).addTo(state.map);
-
-  const bounds = state.circle.getBounds();
-  state.map.fitBounds(bounds, { padding:[20,20] });
+  state.map.fitBounds(state.circle.getBounds(), { padding:[20,20] });
   els.status.textContent = accuracy ? `Lokacija določena (±${Math.round(accuracy)} m)` : 'Lokacija določena';
 }
 
@@ -98,416 +105,217 @@ function locateUser(loadAfter = true) {
   }, { enableHighAccuracy:true, timeout:15000, maximumAge:30000 });
 }
 
-async function fetchOsmStations() {
-  const radiusM = Math.round(state.radiusKm * 1000);
-  const query = `[out:json][timeout:20];nwr["amenity"="fuel"](around:${radiusM},${state.lat},${state.lon});out center tags;`;
+function bboxForRadius(lat, lon, radiusKm) {
+  const latPad = radiusKm / 111.32;
+  const lonPad = radiusKm / Math.max(15, 111.32 * Math.cos(lat * Math.PI/180));
+  return [lon-lonPad, lat-latPad, lon+lonPad, lat+latPad];
+}
 
-  // Public Overpass instances can occasionally be busy or temporarily unavailable.
-  // Try several official/community instances instead of failing after the first one.
-  const endpoints = [
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass-api.de/api/interpreter',
-    'https://lz4.overpass-api.de/api/interpreter',
-    'https://z.overpass-api.de/api/interpreter'
-  ];
-
+async function fetchJsonResilient(url, timeout=22000) {
   let lastError = null;
-  for (const endpoint of endpoints) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 18000);
+  for (const w of WRAPPERS) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), timeout);
     try {
-      // POST is more robust than putting the whole Overpass query in the URL.
-      const body = new URLSearchParams({ data: query });
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body,
-        signal: controller.signal
-      });
-      if (!response.ok) throw new Error(`${endpoint} HTTP ${response.status}`);
-      const data = await response.json();
-      if (!Array.isArray(data.elements)) throw new Error(`${endpoint} je vrnil neveljaven odgovor`);
-      return data.elements.map(el => {
-        const lat = el.lat ?? el.center?.lat;
-        const lon = el.lon ?? el.center?.lon;
-        if (lat == null || lon == null) return null;
-        const tags = el.tags || {};
-        return {
-          id: `osm-${el.type}-${el.id}`,
-          osmId: el.id,
-          lat,
-          lon,
-          name: tags.name || tags.brand || tags.operator || 'Bencinska črpalka',
-          brand: tags.brand || '',
-          operator: tags.operator || '',
-          address: [tags['addr:street'], tags['addr:housenumber'], tags['addr:city']].filter(Boolean).join(' '),
-          diesel: null,
-          priceUpdated: null,
-          priceSource: null,
-          distanceKm: haversine(state.lat, state.lon, lat, lon)
-        };
-      }).filter(Boolean);
-    } catch (err) {
-      lastError = err;
-      console.warn('Overpass neuspešen:', endpoint, err);
+      const r = await fetch(w.wrap(url), { cache:'no-store', headers:{Accept:'application/json'}, signal:ctrl.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      return { data, route:w.name };
+    } catch(e) {
+      lastError = e;
+      console.warn('Vir neuspešen', w.name, e);
     } finally {
       clearTimeout(timer);
     }
   }
-
-  const protocolHint = location.protocol === 'file:'
-    ? ' Aplikacija je odprta kot lokalna datoteka; za zanesljivo delovanje jo odpri prek HTTPS.'
-    : '';
-  throw new Error(`Ni bilo mogoče doseči nobenega Overpass strežnika.${protocolHint} ${lastError?.message || ''}`.trim());
+  throw lastError || new Error('Centralni vir ni dosegljiv');
 }
 
-let sloveniaPriceCache = null;
-let sloveniaPriceCacheAt = 0;
-
-const SI_CORS_WRAPPERS = [
-  { name: 'neposredno goriva.si', wrap: url => url },
-  { name: 'goriva.si prek AllOrigins', wrap: url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url) },
-  { name: 'goriva.si prek corsproxy.io', wrap: url => 'https://corsproxy.io/?url=' + encodeURIComponent(url) }
-];
-
-async function fetchJsonWithFallback(url) {
-  let lastError = null;
-  for (const item of SI_CORS_WRAPPERS) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
-    try {
-      const response = await fetch(item.wrap(url), {
-        cache: 'no-store',
-        headers: { 'Accept': 'application/json' },
-        signal: controller.signal
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      return { data, source: item.name };
-    } catch (err) {
-      lastError = err;
-      console.warn('Slovenia source failed:', item.name, err);
-    } finally {
-      clearTimeout(timer);
+async function loadExchangeRates() {
+  try {
+    const r = await fetchJsonResilient('https://pumperly.com/api/exchange-rates', 15000);
+    if (r.data && r.data.rates) {
+      state.rates = r.data.rates;
+      state.ratesDate = r.data.date || null;
     }
+  } catch(e) {
+    console.warn('Tečajev ni bilo mogoče naložiti', e);
+    state.rates = { EUR: 1 };
   }
-  throw lastError || new Error('goriva.si trenutno ni dosegljiv');
 }
 
-async function fetchGorivaSiLive() {
-  const base = 'https://goriva.si/api/v1/search/?format=json&page=';
-  const first = await fetchJsonWithFallback(base + '1');
-  const firstData = first.data;
-  if (!Array.isArray(firstData.results)) throw new Error('goriva.si je vrnil neveljaven odgovor');
-
-  const pageSize = firstData.results.length || 25;
-  const totalPages = Math.max(1, Math.ceil(Number(firstData.count || firstData.results.length) / pageSize));
-  const pages = [firstData.results];
-
-  // Ostale strani nalagamo v manjših paketih, da javnih posrednikov ne obremenimo po nepotrebnem.
-  for (let p = 2; p <= totalPages; p += 5) {
-    const batch = [];
-    for (let n = p; n < Math.min(p + 5, totalPages + 1); n++) {
-      batch.push(fetchJsonWithFallback(base + n).then(r => r.data.results || []).catch(() => []));
-    }
-    pages.push(...await Promise.all(batch));
-  }
-
-  return { rows: pages.flat(), source: first.source };
+function eurValue(price, currency) {
+  if (price == null) return null;
+  if (!currency || currency === 'EUR') return price;
+  const rate = Number(state.rates[currency]);
+  if (!Number.isFinite(rate) || rate <= 0) return null;
+  // ECB: 1 EUR = rate units of currency.
+  return price / rate;
 }
 
-async function fetchGorivaMirror() {
-  const pageCount = 22;
-  const bases = [
-    'https://cdn.jsdelivr.net/gh/stefanb/goriva-data@master/data',
-    'https://raw.githubusercontent.com/stefanb/goriva-data/master/data'
-  ];
-
-  async function fetchPage(page) {
-    let lastError = null;
-    for (const base of bases) {
-      try {
-        const response = await fetch(`${base}/search_page_${page}.json`, { cache:'no-store', headers:{'Accept':'application/json'} });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (!Array.isArray(data.results)) throw new Error('Neveljaven JSON');
-        return data.results;
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    throw lastError || new Error(`Mirror stran ${page} ni dosegljiva`);
-  }
-
-  const pages = await Promise.all(Array.from({length:pageCount}, (_,i) => fetchPage(i+1)));
-  return { rows: pages.flat(), source: 'goriva.si · goriva-data mirror' };
+function formatPrice(price, currency='EUR') {
+  if (price == null) return 'Cena ni na voljo';
+  const c = currency || 'EUR';
+  const decimals = c === 'HUF' || c === 'RSD' ? 1 : 3;
+  return `${Number(price).toFixed(decimals)} ${c}/l`;
 }
 
-function normalizeSloveniaRows(rows, source) {
-  const seen = new Set();
+function timeAgo(iso) {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '';
+  const min = Math.max(0, Math.round((Date.now()-t)/60000));
+  if (min < 60) return `pred ${min} min`;
+  const h = Math.round(min/60);
+  if (h < 48) return `pred ${h} h`;
+  const d = Math.round(h/24);
+  return `pred ${d} d`;
+}
+
+async function fetchPumperlyStations() {
+  const bbox = bboxForRadius(state.lat, state.lon, state.radiusKm);
+  const url = `https://pumperly.com/api/stations?bbox=${bbox.map(n=>n.toFixed(6)).join(',')}&fuel=${encodeURIComponent(state.fuel)}`;
+  const r = await fetchJsonResilient(url, 25000);
+  state.dataRoute = r.route;
+  const features = r.data?.features || [];
   const out = [];
-  for (const s of rows) {
-    const pk = s.pk ?? `${s.name}-${s.lat}-${s.lng}`;
-    if (seen.has(pk)) continue;
-    seen.add(pk);
-
-    const lat = Number(s.lat);
-    const lon = Number(s.lng);
+  for (const f of features) {
+    const coords = f.geometry?.coordinates;
+    const p = f.properties || {};
+    if (!Array.isArray(coords) || coords.length < 2) continue;
+    const lon = Number(coords[0]), lat = Number(coords[1]);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-    const d = haversine(state.lat, state.lon, lat, lon);
-    if (d > state.radiusKm + 0.15) continue;
-
-    const rawPrice = s.prices?.dizel;
-    const diesel = rawPrice == null ? null : Number(String(rawPrice).replace(',', '.'));
+    const distanceKm = haversine(state.lat, state.lon, lat, lon);
+    if (distanceKm > state.radiusKm + 0.15) continue;
+    let price = p.price == null ? null : Number(p.price);
+    if (!Number.isFinite(price) || price <= 0) price = null;
+    const currency = p.currency || 'EUR';
     out.push({
-      id: `si-${pk}`,
-      lat,
-      lon,
-      name: String(s.name || 'Bencinska črpalka').trim(),
-      brand: '',
-      operator: '',
-      address: [s.address, s.zip_code].filter(Boolean).join(', '),
-      diesel: Number.isFinite(diesel) && diesel > 0 ? diesel : null,
-      priceUpdated: null,
-      priceSource: source,
-      distanceKm: d
+      id: String(p.id || p.externalId || `${lat}-${lon}`),
+      name: p.name || p.brand || 'Bencinska črpalka',
+      brand: p.brand || '',
+      address: [p.address, p.city].filter(Boolean).join(', '),
+      city: p.city || '',
+      lat, lon, distanceKm,
+      diesel: price,
+      currency,
+      eurPrice: eurValue(price, currency),
+      country: p.country || '',
+      updated: p.reportedAt || null,
+      source: 'Pumperly'
     });
   }
   return out;
 }
 
-async function fetchSloveniaPrices() {
-  // 5-minutni pomnilnik: pri ponovnem razvrščanju/osveževanju ne nalagamo cele Slovenije znova.
-  if (sloveniaPriceCache && Date.now() - sloveniaPriceCacheAt < 5 * 60 * 1000) {
-    return {
-      stations: normalizeSloveniaRows(sloveniaPriceCache.rows, sloveniaPriceCache.source),
-      source: sloveniaPriceCache.source
-    };
+async function fetchOsmStations() {
+  const radiusM=Math.round(state.radiusKm*1000);
+  const query=`[out:json][timeout:20];nwr["amenity"="fuel"](around:${radiusM},${state.lat},${state.lon});out center tags;`;
+  const endpoints=['https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter','https://lz4.overpass-api.de/api/interpreter'];
+  for(const endpoint of endpoints) {
+    try {
+      const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),18000);
+      const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({data:query}),signal:ctrl.signal}); clearTimeout(timer);
+      if(!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data=await response.json();
+      return (data.elements||[]).map(el=>{
+        const lat=el.lat??el.center?.lat, lon=el.lon??el.center?.lon; if(lat==null||lon==null) return null;
+        const t=el.tags||{};
+        return { id:`osm-${el.type}-${el.id}`, name:t.name||t.brand||t.operator||'Bencinska črpalka', brand:t.brand||'', address:[t['addr:street'],t['addr:housenumber'],t['addr:city']].filter(Boolean).join(' '), lat, lon, diesel:null, currency:'EUR', eurPrice:null, country:'', source:'OpenStreetMap', updated:null, distanceKm:haversine(state.lat,state.lon,lat,lon) };
+      }).filter(s=>s && s.distanceKm <= state.radiusKm + 0.15);
+    } catch(e){ console.warn('Overpass neuspešen',endpoint,e); }
   }
-
-  let dataset;
-  try {
-    dataset = await fetchGorivaSiLive();
-  } catch (liveErr) {
-    console.warn('Live goriva.si ni dosegljiv, poskušam mirror:', liveErr);
-    dataset = await fetchGorivaMirror();
-  }
-
-  sloveniaPriceCache = dataset;
-  sloveniaPriceCacheAt = Date.now();
-  return { stations: normalizeSloveniaRows(dataset.rows, dataset.source), source: dataset.source };
+  return [];
 }
 
-async function fetchGermanyPrices() {
-  if (!state.tankerKey) return [];
-  const radius = Math.min(state.radiusKm, 25); // Tankerkönig list endpoint max radius is limited.
-  const url = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${state.lat}&lng=${state.lon}&rad=${radius}&sort=dist&type=diesel&apikey=${encodeURIComponent(state.tankerKey)}`;
-  const response = await fetch(url);
-  if (!response.ok) return [];
-  const data = await response.json();
-  if (!data.ok || !Array.isArray(data.stations)) return [];
-  return data.stations.map(s => ({
-    id: s.id,
-    lat: s.lat,
-    lon: s.lng,
-    name: s.name || s.brand || 'Bencinska črpalka',
-    brand: s.brand || '',
-    address: [s.street, s.houseNumber, s.place].filter(Boolean).join(' '),
-    diesel: typeof s.diesel === 'number' ? s.diesel : null,
-    priceUpdated: null,
-    priceSource: 'Tankerkönig / MTS-K',
-    distanceKm: typeof s.dist === 'number' ? s.dist : haversine(state.lat, state.lon, s.lat, s.lng)
-  }));
-}
-
-async function fetchSpainPrices() {
-  // Uradni španski REST vir vrača vse bencinske črpalke; filtriramo lokalno po radiusu.
-  const url = 'https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/';
-  const response = await fetch(url);
-  if (!response.ok) return [];
-  const data = await response.json();
-  const list = data.ListaEESSPrecio || [];
-  return list.map((s, i) => {
-    const lat = Number(String(s.Latitud || '').replace(',', '.'));
-    const lon = Number(String(s['Longitud (WGS84)'] || '').replace(',', '.'));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    const d = haversine(state.lat, state.lon, lat, lon);
-    if (d > state.radiusKm) return null;
-    const raw = s['Precio Gasoleo A'];
-    const price = raw ? Number(String(raw).replace(',', '.')) : null;
-    return {
-      id: `es-${s.IDEESS || i}`,
-      lat, lon,
-      name: s.Rótulo || 'Bencinska črpalka',
-      brand: s.Rótulo || '',
-      address: [s.Dirección, s.Localidad].filter(Boolean).join(', '),
-      diesel: Number.isFinite(price) ? price : null,
-      priceUpdated: [s.Fecha, s.Horario].filter(Boolean).join(' '),
-      priceSource: 'Gobierno de España',
-      distanceKm: d
-    };
-  }).filter(Boolean);
-}
-
-async function detectCountryCode() {
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${state.lat}&lon=${state.lon}&zoom=5&addressdetails=1`;
-    const response = await fetch(url, { headers: { 'Accept-Language': 'sl,en' } });
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.address?.country_code?.toUpperCase() || null;
-  } catch {
-    return null;
-  }
-}
-
-function mergeStations(osm, priced) {
-  if (!priced.length) return osm;
-  const out = [...priced];
-  // Add OSM stations not already represented within 250 m.
-  for (const s of osm) {
-    const duplicate = priced.some(p => haversine(s.lat, s.lon, p.lat, p.lon) < 0.25);
-    if (!duplicate) out.push(s);
+function dedupe(stations) {
+  const sorted=[...stations].sort((a,b)=>(a.diesel==null)-(b.diesel==null));
+  const out=[];
+  for(const s of sorted) {
+    const duplicate=out.find(x=>haversine(s.lat,s.lon,x.lat,x.lon)<0.08);
+    if(!duplicate) out.push(s);
+    else if(duplicate.diesel==null && s.diesel!=null) Object.assign(duplicate,s);
   }
   return out;
 }
 
 async function loadStations() {
-  if (state.lat == null || state.lon == null) return;
-  els.refresh.disabled = true;
-  els.stationList.innerHTML = '<div class="loading">Iščem bencinske črpalke …</div>';
-  els.status.textContent = `Iščem v območju ${state.radiusKm} km …`;
+  if(state.lat==null) return;
+  els.refresh.disabled=true;
+  els.stationList.innerHTML='<div class="loading">Nalagam evropske cene dizla …</div>';
+  els.status.textContent='Povezujem se s centralnim evropskim virom …';
+  const results=[];
+  let centralError=null;
 
+  await loadExchangeRates();
   try {
-    if (state.circle) {
-      state.circle.setRadius(state.radiusKm * 1000);
-      state.map.fitBounds(state.circle.getBounds(), { padding:[20,20] });
-    }
-
-    const country = await detectCountryCode();
-    let osm = [];
-    let priced = [];
-    let priceWarning = '';
-
-    // Country adapters: each country can provide station-level prices in one common format.
-    // Slovenia uses a browser-friendly mirror of the goriva.si API dataset.
-    let activePriceSource = '';
-    if (country === 'SI') {
-      try {
-        const siResult = await fetchSloveniaPrices();
-        priced = siResult.stations;
-        activePriceSource = siResult.source;
-      } catch (e) {
-        console.warn('Slovenia price API:', e);
-        priceWarning = ' · slovenski cenik trenutno ni dosegljiv';
-      }
-      // OSM remains a fallback for station locations and can fill any rare gaps.
-      try { osm = await fetchOsmStations(); } catch (e) { console.warn('OSM fallback:', e); }
-    } else {
-      osm = await fetchOsmStations();
-      if (country === 'DE' && state.tankerKey) {
-        priced = await fetchGermanyPrices();
-      } else if (country === 'ES') {
-        try { priced = await fetchSpainPrices(); } catch (e) { console.warn('Spain price API:', e); }
-      }
-    }
-
-    state.stations = mergeStations(osm, priced).filter(s => s.distanceKm <= state.radiusKm + 0.1);
-    renderStations();
-    const pricedCount = state.stations.filter(s => s.diesel != null).length;
-    els.status.textContent = `${state.stations.length} črpalk · ${pricedCount} s ceno · ${state.radiusKm} km${country ? ` · ${country}` : ''}${activePriceSource ? ` · ${activePriceSource}` : ''}${priceWarning}`;
-  } catch (err) {
-    console.error(err);
-    const detail = escapeHtml(err?.message || 'Neznana napaka');
-    els.stationList.innerHTML = `<div class="empty-state"><strong>Črpalk trenutno ni bilo mogoče naložiti.</strong><br><span style="display:block;margin-top:8px">${detail}</span><br>Poskusi ponovno z gumbom <strong>Osveži</strong>.</div>`;
-    els.status.textContent = location.protocol === 'file:'
-      ? 'Aplikacijo odpri prek HTTPS – lokalno odpiranje lahko blokira iskanje črpalk.'
-      : 'Napaka pri pridobivanju črpalk – poskusi znova.';
-  } finally {
-    els.refresh.disabled = false;
+    results.push(...await fetchPumperlyStations());
+  } catch(e) {
+    centralError=e;
+    console.warn('Pumperly neuspešen',e);
   }
+
+  // OSM dopolni lokacije in služi kot rezerva, če centralni vir odpove.
+  try { results.push(...await fetchOsmStations()); } catch(e) { console.warn(e); }
+
+  state.stations=dedupe(results).filter(s=>s.distanceKm<=state.radiusKm+0.15);
+  renderStations();
+  const priced=state.stations.filter(s=>s.diesel!=null).length;
+  const countries=[...new Set(state.stations.map(s=>s.country).filter(Boolean))];
+  const countryText=countries.map(c=>`${EUROPE[c]?.[0]||''} ${c}`).join(' · ');
+  els.status.textContent = `${state.stations.length} črpalk · ${priced} s ceno${countryText ? ' · '+countryText : ''}`;
+  if (centralError) {
+    els.listInfo.textContent='Centralni cenovni vir trenutno ni dosegljiv; prikazane so rezervne lokacije OpenStreetMap.';
+  } else {
+    els.listInfo.textContent=`Vir cen: ${state.dataRoute || 'Pumperly'}${state.ratesDate ? ` · tečaji ECB ${state.ratesDate}` : ''}`;
+  }
+  els.refresh.disabled=false;
 }
 
-function sortedStations() {
-  const arr = [...state.stations];
-  if (els.sort.value === 'distance') return arr.sort((a,b) => a.distanceKm - b.distanceKm);
-  return arr.sort((a,b) => {
-    if (a.diesel == null && b.diesel == null) return a.distanceKm - b.distanceKm;
-    if (a.diesel == null) return 1;
-    if (b.diesel == null) return -1;
-    return a.diesel - b.diesel || a.distanceKm - b.distanceKm;
-  });
+function pricePinIcon(station) {
+  const txt=station.diesel!=null ? `${Number(station.diesel).toFixed(station.currency==='HUF'||station.currency==='RSD'?1:3)} ${station.currency||'EUR'}` : '⛽';
+  return L.divIcon({className:'',html:`<div class="price-pin">${escapeHtml(txt)}</div>`,iconSize:[82,26],iconAnchor:[41,13]});
 }
 
 function renderStations() {
-  for (const m of state.markers) state.map.removeLayer(m);
-  state.markers = [];
-
-  const stations = sortedStations();
-  els.stationCount.textContent = String(stations.length);
-
-  if (!stations.length) {
-    els.stationList.innerHTML = '<div class="empty-state">V tem območju nisem našel bencinskih črpalk.</div>';
-    return;
-  }
-
-  els.stationList.innerHTML = '';
-
-  stations.forEach(s => {
-    const priceText = s.diesel != null ? `${s.diesel.toFixed(3)} €/l` : 'Cena ni na voljo';
-    const pinHtml = `<div class="price-pin">${s.diesel != null ? s.diesel.toFixed(3) + ' €' : '⛽'}</div>`;
-    const marker = L.marker([s.lat, s.lon], {
-      icon: L.divIcon({ className:'', html:pinHtml, iconAnchor:[20,14] })
-    }).addTo(state.map);
-    marker.bindPopup(`<strong>${escapeHtml(s.name)}</strong><br>${priceText}<br>${s.distanceKm.toFixed(1)} km<br><a href="${googleNavUrl(s)}" target="_blank" rel="noopener">Navigiraj z Google Maps</a>`);
-    state.markers.push(marker);
-
-    const card = document.createElement('article');
-    card.className = 'station-card';
-    card.innerHTML = `
-      <div>
-        <h3 class="station-name">${escapeHtml(s.name)}</h3>
-        <div class="station-meta">
-          <span>📍 ${s.distanceKm.toFixed(1)} km</span>
-          ${s.address ? `<span>${escapeHtml(s.address)}</span>` : ''}
-        </div>
-        <a class="nav-btn" href="${googleNavUrl(s)}" target="_blank" rel="noopener">Navigiraj</a>
-        ${s.priceSource ? `<div class="source-note">Cena: ${escapeHtml(s.priceSource)}${s.priceUpdated ? ` · ${escapeHtml(s.priceUpdated)}` : ''}</div>` : '<div class="source-note">Lokacija: OpenStreetMap · cena za to državo še ni priklopljena</div>'}
-      </div>
-      <div class="price ${s.diesel == null ? 'missing' : ''}">${priceText}</div>
-    `;
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('a')) return;
-      state.map.setView([s.lat, s.lon], 15);
-      marker.openPopup();
-      window.scrollTo({ top:0, behavior:'smooth' });
-    });
-    els.stationList.appendChild(card);
+  for(const m of state.markers) state.map.removeLayer(m);
+  state.markers=[];
+  const sort=els.sort.value;
+  const arr=[...state.stations].sort((a,b)=>{
+    if(sort==='distance') return a.distanceKm-b.distanceKm;
+    if(a.diesel==null && b.diesel!=null) return 1;
+    if(a.diesel!=null && b.diesel==null) return -1;
+    const ap=a.eurPrice, bp=b.eurPrice;
+    if(ap!=null && bp!=null && ap!==bp) return ap-bp;
+    if(a.currency===b.currency && a.diesel!=null && b.diesel!=null && a.diesel!==b.diesel) return a.diesel-b.diesel;
+    return a.distanceKm-b.distanceKm;
   });
+  els.stationCount.textContent=String(arr.length);
+  if(!arr.length){ els.stationList.innerHTML='<div class="empty-state">V izbranem območju ni bilo mogoče najti črpalk.</div>'; return; }
+  els.stationList.innerHTML='';
+  for(const s of arr){
+    const flag=EUROPE[s.country]?.[0] || '';
+    const nativePrice=formatPrice(s.diesel,s.currency);
+    const approx = s.diesel!=null && s.currency!=='EUR' && s.eurPrice!=null ? ` ≈ ${s.eurPrice.toFixed(3)} EUR/l` : '';
+    const age=timeAgo(s.updated);
+    const m=L.marker([s.lat,s.lon],{icon:pricePinIcon(s)}).addTo(state.map).bindPopup(`<strong>${flag} ${escapeHtml(s.name)}</strong><br>${s.distanceKm.toFixed(1)} km<br>${s.diesel!=null?`${escapeHtml(nativePrice)}${escapeHtml(approx)}`:'Cena ni na voljo'}${age?`<br><small>${escapeHtml(age)}</small>`:''}`);
+    state.markers.push(m);
+    const card=document.createElement('article'); card.className='station-card';
+    card.innerHTML=`<div><h3 class="station-name">${flag} ${escapeHtml(s.name)}</h3><div class="station-meta"><span>${s.distanceKm.toFixed(1)} km</span>${s.brand?`<span>${escapeHtml(s.brand)}</span>`:''}${s.address?`<span>${escapeHtml(s.address)}</span>`:''}</div><a class="nav-btn" href="${googleNavUrl(s)}" target="_blank" rel="noopener">Navigiraj</a><div class="source-note">Vir: ${escapeHtml(s.source)}${age?` · posodobljeno ${escapeHtml(age)}`:''}</div></div><div class="price ${s.diesel==null?'missing':''}">${s.diesel!=null?`${escapeHtml(nativePrice)}${approx?`<div class="source-note">${escapeHtml(approx.trim())}</div>`:''}`:'Cena ni na voljo'}</div>`;
+    els.stationList.appendChild(card);
+  }
 }
 
-function escapeHtml(value='') {
-  return String(value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
-}
+function escapeHtml(v){ return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
-document.getElementById('settingsBtn').addEventListener('click', () => {
-  updateLabels();
-  els.settings.showModal();
+document.getElementById('settingsBtn').addEventListener('click',()=>els.settings.showModal());
+document.getElementById('locateBtn').addEventListener('click',()=>locateUser(true));
+els.refresh.addEventListener('click',()=>loadStations());
+els.sort.addEventListener('change',()=>renderStations());
+document.getElementById('saveSettingsBtn').addEventListener('click',e=>{
+  e.preventDefault(); saveSettings(); els.settings.close();
+  if(state.lat!=null){ setPosition(state.lat,state.lon); loadStations(); }
 });
-document.getElementById('saveSettingsBtn').addEventListener('click', async (e) => {
-  e.preventDefault();
-  saveSettings();
-  els.settings.close();
-  if (state.lat != null) await loadStations();
-});
-document.getElementById('locateBtn').addEventListener('click', () => locateUser(true));
-document.getElementById('refreshBtn').addEventListener('click', () => loadStations());
-els.sort.addEventListener('change', renderStations);
 
-initMap();
-updateLabels();
-locateUser(true);
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-}
+initMap(); updateLabels(); locateUser(true);
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});

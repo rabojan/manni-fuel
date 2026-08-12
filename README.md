@@ -1,30 +1,24 @@
-# Manni Fuel
+# Manni Fuel v7 — centralna Evropa
 
-Mobilna PWA spletna aplikacija za avtodom.
+Manni Fuel v7 ne kliče več ločenih državnih API-jev iz telefona. Primarni cenovni vir je centralni Pumperly backend, ki podatke zbira in normalizira po državah. OpenStreetMap ostaja rezervni vir lokacij.
 
-## Kaj že dela
+## Pokritje cen v Evropi
+31 držav: ES, FR, DE, IT, GB, AT, PT, SI, NL, BE, LU, RO, GR, IE, HR, CH, PL, CZ, HU, BG, SK, DK, SE, NO, RS, FI, EE, LV, LT, BA, MK.
+
+## Delovanje
 - GPS trenutna lokacija
-- zemljevid OpenStreetMap
-- nastavljiv radius 5 / 10 / 20 / 30 / 50 km
-- iskanje bencinskih črpalk prek OpenStreetMap/Overpass
-- prikaz črpalk na zemljevidu
-- seznam črpalk
-- razdalja od trenutne lokacije
-- gumb »Navigiraj« v Google Maps
+- 5 / 10 / 20 / 30 / 50 km od uporabnika
+- Diesel B7
+- zemljevid in seznam
+- cena v lokalni valuti
+- približna pretvorba v EUR za države izven EUR (tečaji prek Pumperly/ECB)
 - razvrščanje po ceni ali oddaljenosti
-- Španija: uradni REST vir cen dizla
-- Nemčija: Tankerkönig/MTS-K po vnosu API ključa
-- PWA – dodajanje na domači zaslon telefona
+- Google Maps navigacija
+- čas zadnje objavljene cene, kadar ga vir vsebuje
+- OpenStreetMap fallback, če centralni cenovni vir ni dosegljiv
+
+## GitHub Pages
+Zamenjaj `index.html`, `app.js`, `styles.css`, `manifest.json`, `sw.js` in po želji `README.md`. Po deploymentu naredi hard refresh (Cmd + Shift + R).
 
 ## Pomembno
-Geolokacija v sodobnih brskalnikih deluje samo prek HTTPS ali na localhostu.
-
-Za popolno evropsko pokritost cen je treba dodati adapterje za uradne vire posameznih držav. Lokacije bencinskih črpalk že delujejo po Evropi prek OpenStreetMap.
-
-
-## v4 – Slovenija
-Slovenske cene se berejo iz javnega periodično osveženega mirrorja goriva-data (vir podatkov: goriva.si), zato neposredni CORS klic na goriva.si ni več potreben.
-
-
-## Slovenija – v5
-Cene se najprej berejo neposredno iz goriva.si. Če brskalnik klic blokira, aplikacija poskusi prek več CORS posrednikov. Če tudi to odpove, uporabi javni goriva-data mirror. OpenStreetMap ostane zadnji fallback za lokacije brez cen.
+Manni Fuel v7 je odvisen od javnega Pumperly backend-a. Pumperly je odprtokodni sistem in njegova javna instanca je namenjena tudi zunanjim integracijam. Če bo aplikacija kdaj postala javni izdelek z več uporabniki, je smiselno preiti na lasten backend/self-hosted Pumperly ali pridobiti dovoljenje/lasten podatkovni sloj.
