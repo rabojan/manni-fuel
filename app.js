@@ -181,19 +181,39 @@ async function loadStations({keepExisting=true}={}){
 
   let rows=[];
   const siMode=areaTouchesSlovenia(priced);
+  const isSI=s=>['SI','SVN','SLO'].includes(String(s.country||'').toUpperCase());
+  const foreignPriced=priced.filter(s=>!isSI(s));
+
+  // Slovenija: uporabimo preverjene koordinate/cene iz goriva.si mirrorja.
+  // Pomembno: to NE sme izbrisati črpalk iz sosednjih držav.
   if(siMode){
     try{
       const siRaw=await fetchSloveniaMirrorSafe();
       const siRows=siRowsInRadius(siRaw);
-      if(siRows.length){ rows=siRows; siUsed=true; }
+      if(siRows.length){ rows.push(...siRows); siUsed=true; }
     }catch(e){console.warn('SI mirror failed',e)}
   }
 
-  if(!siMode){
+  // Vse ostale države vedno obdelamo ločeno prek Pumperly + OSM preverjanja.
+  if(foreignPriced.length){
     try{osmRows=await fetchOsmQuick()}catch(e){console.warn('OSM preverjanje ni uspelo',e)}
-    if(priced.length){
-      rows=applyConfidence(priced,osmRows);
-      if(!osmRows.length) rows=priced.map(s=>({...s,confidence:(ageHours(s.updated)<=36&&((s.name&&s.name!=='Bencinska črpalka')||s.brand))?'likely':'low'})).filter(s=>s.confidence!=='low');
+    let foreignRows=applyConfidence(foreignPriced,osmRows);
+    if(!osmRows.length){
+      foreignRows=foreignPriced
+        .map(s=>({...s,confidence:(ageHours(s.updated)<=36&&((s.name&&s.name!=='Bencinska črpalka')||s.brand))?'likely':'low'}))
+        .filter(s=>s.confidence!=='low');
+    }
+    rows.push(...foreignRows);
+  }
+
+  // Če nismo na območju Slovenije, so vsi Pumperly rezultati tujina in jih normalno prikažemo.
+  if(!siMode && !foreignPriced.length && priced.length){
+    try{osmRows=await fetchOsmQuick()}catch(e){console.warn('OSM preverjanje ni uspelo',e)}
+    rows=applyConfidence(priced,osmRows);
+    if(!osmRows.length){
+      rows=priced
+        .map(s=>({...s,confidence:(ageHours(s.updated)<=36&&((s.name&&s.name!=='Bencinska črpalka')||s.brand))?'likely':'low'}))
+        .filter(s=>s.confidence!=='low');
     }
   }
 
@@ -202,7 +222,7 @@ async function loadStations({keepExisting=true}={}){
   render();
   const ms=Math.round(performance.now()-start),pc=state.stations.filter(s=>s.price!=null).length;
   els.updated.textContent='Posodobljeno pravkar';
-  els.status.textContent=`${state.stations.length} črpalk · ${pc} s ceno · ${ms} ms${siUsed?' · SI: goriva.si':(siMode?' · SI vir nedosegljiv':'')}${err?' · rezervni način':''}`;
+  els.status.textContent=`${state.stations.length} črpalk · ${pc} s ceno · ${ms} ms${siUsed?' · SI: goriva.si':(siMode?' · SI vir nedosegljiv':'')}${foreignPriced.length?' · tujina: Pumperly':''}${err?' · rezervni način':''}`;
   state.isLoading=false;
 }
 

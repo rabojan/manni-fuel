@@ -1,7 +1,9 @@
-# Manni Fuel 2.9
+# Manni Fuel 3.0
 
-Stabilizirana verzija:
-- klik na marker znova odpre klasični popup,
-- bottom sheet ima poleg vlečenja tudi neposreden tap na Povleci/Spusti,
-- v Sloveniji se poskusi uporabiti goriva.si mirror za ime, ceno in koordinate,
-- stari markerji se po neuspešnem osveževanju ne ohranijo več.
+Popravek čezmejnega prikaza:
+- slovenske črpalke uporablja iz goriva.si mirrorja,
+- črpalke drugih držav se ne zavržejo več, ko je središče zemljevida v Sloveniji,
+- tujina ostaja Pumperly + OSM confidence preverjanje,
+- pri vožnji čez mejo se lahko na istem zemljevidu hkrati prikažejo SI + AT/HR/IT/HU črpalke, če so znotraj radija.
+
+Ostali popravki 2.9 ostajajo nespremenjeni.
