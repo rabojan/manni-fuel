@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Camper Fuel</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Camper Fuel</h1>
+        <p id="statusText">Pridobivam tvojo lokacijo …</p>
+      </div>
+      <button id="settingsBtn" class="icon-btn" aria-label="Nastavitve">⚙️</button>
+    </header>
+
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div class="map-actions">
+        <button id="locateBtn" class="round-btn" aria-label="Moja lokacija">◎</button>
+      </div>
+    </section>
+
+    <section class="summary-bar">
+      <div>
+        <span class="summary-label">Doseg</span>
+        <strong id="radiusLabel">20 km</strong>
+      </div>
+      <div>
+        <span class="summary-label">Črpalke</span>
+        <strong id="stationCount">0</strong>
+      </div>
+      <button id="refreshBtn" class="primary-btn">Osveži</button>
+    </section>
+
+    <section class="list-head">
+      <div>
+        <h2>Bencinske črpalke</h2>
+        <p id="listInfo">Razvrščeno po ceni, nato oddaljenosti.</p>
+      </div>
+      <select id="sortSelect" aria-label="Razvrsti">
+        <option value="price">Najcenejše</option>
+        <option value="distance">Najbližje</option>
+      </select>
+    </section>
+
+    <main id="stationList" class="station-list" aria-live="polite">
+      <div class="empty-state">Ko dobim tvojo lokacijo, bom prikazal črpalke v izbranem območju.</div>
+    </main>
+  </div>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="settings-card">
+      <div class="settings-head">
+        <h2>Nastavitve</h2>
+        <button value="cancel" class="icon-btn" aria-label="Zapri">✕</button>
+      </div>
+
+      <label class="field">
+        <span>Oddaljenost od mene</span>
+        <select id="radiusSelect">
+          <option value="5">5 km</option>
+          <option value="10">10 km</option>
+          <option value="20" selected>20 km</option>
+          <option value="30">30 km</option>
+          <option value="50">50 km</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Gorivo</span>
+        <select id="fuelSelect">
+          <option value="diesel" selected>Diesel</option>
+        </select>
+      </label>
+
+      <details class="advanced">
+        <summary>Napredno – Nemčija</summary>
+        <label class="field">
+          <span>Tankerkönig API ključ</span>
+          <input id="tankerKey" type="password" placeholder="Neobvezno" autocomplete="off" />
+          <small>Za aktualne cene v Nemčiji potrebuješ brezplačen API ključ Tankerkönig.</small>
+        </label>
+      </details>
+
+      <button id="saveSettingsBtn" value="default" class="primary-btn wide">Shrani nastavitve</button>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
