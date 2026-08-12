@@ -24,14 +24,16 @@
     <section class="map-wrap">
       <div id="map"></div>
       <div class="map-actions">
-        <button id="locateBtn" class="round-btn" aria-label="Moja lokacija">◎</button>
+        <button id="locateBtn" class="round-btn" aria-label="Moja lokacija" title="Poišči okoli moje lokacije">◎</button>
       </div>
+      <button id="searchMapBtn" class="map-search-btn" type="button">⛽ Poišči na tem območju</button>
     </section>
 
     <section class="summary-bar">
       <div>
         <span class="summary-label">Doseg</span>
         <strong id="radiusLabel">20 km</strong>
+        <small id="searchModeLabel" class="summary-sub">okoli mene</small>
       </div>
       <div>
         <span class="summary-label">Črpalke</span>
@@ -81,9 +83,15 @@
         </select>
       </label>
 
+      <label class="field">
+        <span>Manni API (Cloudflare Worker)</span>
+        <input id="apiBaseInput" type="url" placeholder="https://manni-fuel-api...workers.dev" autocomplete="off" />
+        <small>Ko postaviš svoj Worker, sem prilepi njegov https naslov. Brez njega aplikacija uporabi počasnejši rezervni dostop do Pumperly.</small>
+      </label>
+
       <div class="field">
         <span>Podatkovni sistem</span>
-        <small>Manni Fuel uporablja centralni evropski vir Pumperly. Posamezne države se v ozadju osvežujejo iz državnih in drugih lokalnih virov.</small>
+        <small>Prednostno: tvoj Cloudflare Worker → Pumperly. Rezerva: neposredni Pumperly in javni CORS posredniki.</small>
       </div>
 
       <button id="saveSettingsBtn" value="default" class="primary-btn wide">Shrani nastavitve</button>

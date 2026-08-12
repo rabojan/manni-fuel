@@ -1,16 +1,21 @@
 const state = {
   lat: null,
   lon: null,
+  gpsLat: null,
+  gpsLon: null,
+  searchMode: 'gps',
   radiusKm: Number(localStorage.getItem('radiusKm') || 20),
   fuel: 'B7',
   stations: [],
   markers: [],
   userMarker: null,
   circle: null,
+  searchCenterMarker: null,
   map: null,
   rates: { EUR: 1 },
   ratesDate: null,
-  dataRoute: ''
+  dataRoute: '',
+  apiBase: (localStorage.getItem('manniApiBase') || '').replace(/\/$/, '')
 };
 
 const els = {
@@ -23,7 +28,10 @@ const els = {
   settings: document.getElementById('settingsDialog'),
   sort: document.getElementById('sortSelect'),
   refresh: document.getElementById('refreshBtn'),
-  listInfo: document.getElementById('listInfo')
+  listInfo: document.getElementById('listInfo'),
+  apiBaseInput: document.getElementById('apiBaseInput'),
+  searchMapBtn: document.getElementById('searchMapBtn'),
+  searchModeLabel: document.getElementById('searchModeLabel')
 };
 
 const EUROPE = {
@@ -53,12 +61,15 @@ function updateLabels() {
   els.radiusLabel.textContent = `${state.radiusKm} km`;
   els.radiusSelect.value = String(state.radiusKm);
   els.fuelSelect.value = state.fuel;
+  if (els.apiBaseInput) els.apiBaseInput.value = state.apiBase;
 }
 
 function saveSettings() {
   state.radiusKm = Number(els.radiusSelect.value);
   state.fuel = els.fuelSelect.value;
+  state.apiBase = (els.apiBaseInput?.value || '').trim().replace(/\/$/, '');
   localStorage.setItem('radiusKm', String(state.radiusKm));
+  localStorage.setItem('manniApiBase', state.apiBase);
   updateLabels();
 }
 
@@ -74,19 +85,38 @@ function googleNavUrl(station) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(station.lat + ',' + station.lon)}&travelmode=driving`;
 }
 
-function setPosition(lat, lon, accuracy) {
+function drawSearchArea(lat, lon, mode='gps', fit=true) {
   state.lat = lat;
   state.lon = lon;
-  if (state.userMarker) state.map.removeLayer(state.userMarker);
+  state.searchMode = mode;
   if (state.circle) state.map.removeLayer(state.circle);
+  if (state.searchCenterMarker) { state.map.removeLayer(state.searchCenterMarker); state.searchCenterMarker = null; }
 
-  const icon = L.divIcon({ className:'', html:'<div class="user-marker"></div>', iconSize:[18,18], iconAnchor:[9,9] });
-  state.userMarker = L.marker([lat, lon], { icon }).addTo(state.map).bindPopup('Tvoja lokacija');
+  const isGps = mode === 'gps';
   state.circle = L.circle([lat, lon], {
     radius: state.radiusKm * 1000,
-    color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: 0.05
+    color: isGps ? '#2563eb' : '#f59e0b',
+    weight: 1,
+    fillColor: isGps ? '#2563eb' : '#f59e0b',
+    fillOpacity: 0.05
   }).addTo(state.map);
-  state.map.fitBounds(state.circle.getBounds(), { padding:[20,20] });
+
+  if (!isGps) {
+    const searchIcon = L.divIcon({ className:'', html:'<div class="search-center-marker"></div>', iconSize:[18,18], iconAnchor:[9,9] });
+    state.searchCenterMarker = L.marker([lat, lon], { icon: searchIcon }).addTo(state.map).bindPopup('Središče iskanega območja');
+  }
+
+  if (fit) state.map.fitBounds(state.circle.getBounds(), { padding:[20,20] });
+  if (els.searchModeLabel) els.searchModeLabel.textContent = isGps ? 'okoli mene' : 'okoli zemljevida';
+}
+
+function setPosition(lat, lon, accuracy) {
+  state.gpsLat = lat;
+  state.gpsLon = lon;
+  if (state.userMarker) state.map.removeLayer(state.userMarker);
+  const icon = L.divIcon({ className:'', html:'<div class="user-marker"></div>', iconSize:[18,18], iconAnchor:[9,9] });
+  state.userMarker = L.marker([lat, lon], { icon }).addTo(state.map).bindPopup('Tvoja lokacija');
+  drawSearchArea(lat, lon, 'gps', true);
   els.status.textContent = accuracy ? `Lokacija določena (±${Math.round(accuracy)} m)` : 'Lokacija določena';
 }
 
@@ -131,9 +161,24 @@ async function fetchJsonResilient(url, timeout=22000) {
   throw lastError || new Error('Centralni vir ni dosegljiv');
 }
 
+async function fetchCentral(path, timeout=12000) {
+  if (state.apiBase) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), timeout);
+    try {
+      const r = await fetch(state.apiBase + path, { cache:'no-store', headers:{Accept:'application/json'}, signal:ctrl.signal });
+      if (!r.ok) throw new Error(`Worker HTTP ${r.status}`);
+      return { data: await r.json(), route:'Manni API · Cloudflare Worker' };
+    } catch(e) {
+      console.warn('Manni API neuspešen, uporabljam rezervo', e);
+    } finally { clearTimeout(timer); }
+  }
+  return fetchJsonResilient('https://pumperly.com' + path, timeout + 10000);
+}
+
 async function loadExchangeRates() {
   try {
-    const r = await fetchJsonResilient('https://pumperly.com/api/exchange-rates', 15000);
+    const r = await fetchCentral('/api/exchange-rates', 8000);
     if (r.data && r.data.rates) {
       state.rates = r.data.rates;
       state.ratesDate = r.data.date || null;
@@ -174,8 +219,8 @@ function timeAgo(iso) {
 
 async function fetchPumperlyStations() {
   const bbox = bboxForRadius(state.lat, state.lon, state.radiusKm);
-  const url = `https://pumperly.com/api/stations?bbox=${bbox.map(n=>n.toFixed(6)).join(',')}&fuel=${encodeURIComponent(state.fuel)}`;
-  const r = await fetchJsonResilient(url, 25000);
+  const path = `/api/stations?bbox=${bbox.map(n=>n.toFixed(6)).join(',')}&fuel=${encodeURIComponent(state.fuel)}`;
+  const r = await fetchCentral(path, 12000);
   state.dataRoute = r.route;
   const features = r.data?.features || [];
   const out = [];
@@ -263,7 +308,8 @@ async function loadStations() {
   const priced=state.stations.filter(s=>s.diesel!=null).length;
   const countries=[...new Set(state.stations.map(s=>s.country).filter(Boolean))];
   const countryText=countries.map(c=>`${EUROPE[c]?.[0]||''} ${c}`).join(' · ');
-  els.status.textContent = `${state.stations.length} črpalk · ${priced} s ceno${countryText ? ' · '+countryText : ''}`;
+  const modeText = state.searchMode === 'gps' ? 'okoli tvoje lokacije' : 'okoli izbranega dela zemljevida';
+  els.status.textContent = `${state.stations.length} črpalk · ${priced} s ceno · ${modeText}${countryText ? ' · '+countryText : ''}`;
   if (centralError) {
     els.listInfo.textContent='Centralni cenovni vir trenutno ni dosegljiv; prikazane so rezervne lokacije OpenStreetMap.';
   } else {
@@ -306,15 +352,33 @@ function renderStations() {
   }
 }
 
+async function searchAtMapCenter() {
+  if (!state.map) return;
+  const c = state.map.getCenter();
+  drawSearchArea(c.lat, c.lng, 'map', false);
+  els.searchMapBtn?.classList.add('searching');
+  if (els.searchMapBtn) els.searchMapBtn.textContent = 'Iščem …';
+  try {
+    await loadStations();
+  } finally {
+    els.searchMapBtn?.classList.remove('searching');
+    if (els.searchMapBtn) els.searchMapBtn.textContent = '⛽ Poišči na tem območju';
+  }
+}
+
 function escapeHtml(v){ return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
 document.getElementById('settingsBtn').addEventListener('click',()=>els.settings.showModal());
 document.getElementById('locateBtn').addEventListener('click',()=>locateUser(true));
+els.searchMapBtn?.addEventListener('click',()=>searchAtMapCenter());
 els.refresh.addEventListener('click',()=>loadStations());
 els.sort.addEventListener('change',()=>renderStations());
 document.getElementById('saveSettingsBtn').addEventListener('click',e=>{
   e.preventDefault(); saveSettings(); els.settings.close();
-  if(state.lat!=null){ setPosition(state.lat,state.lon); loadStations(); }
+  if(state.lat!=null){
+    drawSearchArea(state.lat,state.lon,state.searchMode,true);
+    loadStations();
+  }
 });
 
 initMap(); updateLabels(); locateUser(true);

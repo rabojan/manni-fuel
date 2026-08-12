@@ -61,3 +61,32 @@ dialog::backdrop { background:rgba(0,0,0,.42); }
   .station-card { grid-template-columns:1fr; }
   .price { text-align:left; }
 }
+
+
+/* v9: iskanje po poljubnem delu zemljevida */
+.map-wrap{position:relative;}
+.map-search-btn{
+  position:absolute;
+  left:50%;
+  bottom:14px;
+  transform:translateX(-50%);
+  z-index:500;
+  border:0;
+  border-radius:999px;
+  background:#111827;
+  color:#fff;
+  padding:10px 15px;
+  font-weight:700;
+  font-size:13px;
+  box-shadow:0 4px 14px rgba(0,0,0,.25);
+  cursor:pointer;
+  white-space:nowrap;
+}
+.map-search-btn:active{transform:translateX(-50%) scale(.98);}
+.map-search-btn.searching{opacity:.65;pointer-events:none;}
+.summary-sub{display:block;color:#6b7280;font-size:10px;margin-top:2px;font-weight:500;}
+.search-center-marker{
+  width:18px;height:18px;border-radius:50%;background:#f59e0b;border:3px solid #fff;
+  box-shadow:0 0 0 4px rgba(245,158,11,.25);
+}
+@media (max-width:520px){.map-search-btn{bottom:12px;font-size:12px;padding:9px 12px;}}
