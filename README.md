@@ -20,3 +20,7 @@ Mobilna PWA spletna aplikacija za avtodom.
 Geolokacija v sodobnih brskalnikih deluje samo prek HTTPS ali na localhostu.
 
 Za popolno evropsko pokritost cen je treba dodati adapterje za uradne vire posameznih držav. Lokacije bencinskih črpalk že delujejo po Evropi prek OpenStreetMap.
+
+
+## v4 – Slovenija
+Slovenske cene se berejo iz javnega periodično osveženega mirrorja goriva-data (vir podatkov: goriva.si), zato neposredni CORS klic na goriva.si ni več potreben.
