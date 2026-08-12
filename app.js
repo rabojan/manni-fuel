@@ -1,10 +1,21 @@
+
+// Manni's World welcome screen
+window.addEventListener('DOMContentLoaded',()=>{
+  const welcome=document.getElementById('welcomeScreen');
+  if(!welcome)return;
+  const hide=()=>welcome.classList.add('is-hidden');
+  welcome.addEventListener('click',hide,{once:true});
+  setTimeout(hide,2800);
+  setTimeout(()=>welcome.remove(),3550);
+});
+
 const state={
   map:null,
   gps:null,
   center:null,
   radiusKm:Number(localStorage.getItem('radiusKm')||20),
   fuel:localStorage.getItem('fuel')||'B7',
-  apiBase:(localStorage.getItem('manniApiBase')||'').replace(/\/$/,''),
+  apiBase:(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,''),
   stations:[],markers:[],userMarker:null,searchMarker:null,circle:null,
   searchMode:'gps',dataRoute:'',lastUpdated:null,requestSeq:0,
   sheetState:1
