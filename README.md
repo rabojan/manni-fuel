@@ -1,3 +1,5 @@
-# Manni's World — Fuel 2.4
+# Manni Fuel 2.5 — cache reset mobile final
 
-Končna mobile-first postavitev: oranžen Manni's World header, velik zemljevid, spodnji panel z eno črpalko v osnovnem položaju in največ 50 % zaslona v razširjenem položaju. Cloudflare Worker je privzeto nastavljen v aplikaciji.
+Ta verzija prisilno odstrani stare Service Worker cache podatke, da Safari/iPhone ne prikazuje starega vmesnika.
+
+Potrjeni UI: oranžen Manni's World header, zemljevid kot glavni element, spodnji panel z eno črpalko v osnovnem položaju, največ 50 % zaslona ob potegu, brez Calculate ETAs.

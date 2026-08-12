@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=2.5.1" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -98,6 +98,21 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js"></script>
+  <script>
+  // Manni Fuel 2.5: one-time cache reset so iPhone/Safari cannot keep the old UI.
+  (async function(){
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch(e) { console.warn('Cache reset', e); }
+  })();
+</script>
+<script src="app.js?v=2.5.1"></script>
 </body>
 </html>

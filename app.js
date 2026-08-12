@@ -147,3 +147,5 @@ els.handle.addEventListener('click',cycleSheet);els.handle.addEventListener('mou
 
 initMap();locate(true);
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+
+console.info("Manni Fuel UI 2.5.1 — fresh mobile layout");
