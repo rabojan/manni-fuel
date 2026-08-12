@@ -24,3 +24,7 @@ Za popolno evropsko pokritost cen je treba dodati adapterje za uradne vire posam
 
 ## v4 – Slovenija
 Slovenske cene se berejo iz javnega periodično osveženega mirrorja goriva-data (vir podatkov: goriva.si), zato neposredni CORS klic na goriva.si ni več potreben.
+
+
+## Slovenija – v5
+Cene se najprej berejo neposredno iz goriva.si. Če brskalnik klic blokira, aplikacija poskusi prek več CORS posrednikov. Če tudi to odpove, uporabi javni goriva-data mirror. OpenStreetMap ostane zadnji fallback za lokacije brez cen.

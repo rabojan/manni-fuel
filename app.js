@@ -161,11 +161,62 @@ async function fetchOsmStations() {
   throw new Error(`Ni bilo mogoče doseči nobenega Overpass strežnika.${protocolHint} ${lastError?.message || ''}`.trim());
 }
 
-async function fetchSloveniaPrices() {
-  // goriva.si blocks some direct browser requests from GitHub Pages.
-  // Use the public goriva-data mirror, which periodically snapshots the same
-  // goriva.si API and is browser-friendly. The app filters the nationwide
-  // dataset locally to the selected radius.
+let sloveniaPriceCache = null;
+let sloveniaPriceCacheAt = 0;
+
+const SI_CORS_WRAPPERS = [
+  { name: 'neposredno goriva.si', wrap: url => url },
+  { name: 'goriva.si prek AllOrigins', wrap: url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url) },
+  { name: 'goriva.si prek corsproxy.io', wrap: url => 'https://corsproxy.io/?url=' + encodeURIComponent(url) }
+];
+
+async function fetchJsonWithFallback(url) {
+  let lastError = null;
+  for (const item of SI_CORS_WRAPPERS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(item.wrap(url), {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return { data, source: item.name };
+    } catch (err) {
+      lastError = err;
+      console.warn('Slovenia source failed:', item.name, err);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError || new Error('goriva.si trenutno ni dosegljiv');
+}
+
+async function fetchGorivaSiLive() {
+  const base = 'https://goriva.si/api/v1/search/?format=json&page=';
+  const first = await fetchJsonWithFallback(base + '1');
+  const firstData = first.data;
+  if (!Array.isArray(firstData.results)) throw new Error('goriva.si je vrnil neveljaven odgovor');
+
+  const pageSize = firstData.results.length || 25;
+  const totalPages = Math.max(1, Math.ceil(Number(firstData.count || firstData.results.length) / pageSize));
+  const pages = [firstData.results];
+
+  // Ostale strani nalagamo v manjših paketih, da javnih posrednikov ne obremenimo po nepotrebnem.
+  for (let p = 2; p <= totalPages; p += 5) {
+    const batch = [];
+    for (let n = p; n < Math.min(p + 5, totalPages + 1); n++) {
+      batch.push(fetchJsonWithFallback(base + n).then(r => r.data.results || []).catch(() => []));
+    }
+    pages.push(...await Promise.all(batch));
+  }
+
+  return { rows: pages.flat(), source: first.source };
+}
+
+async function fetchGorivaMirror() {
   const pageCount = 22;
   const bases = [
     'https://cdn.jsdelivr.net/gh/stefanb/goriva-data@master/data',
@@ -176,43 +227,40 @@ async function fetchSloveniaPrices() {
     let lastError = null;
     for (const base of bases) {
       try {
-        const response = await fetch(`${base}/search_page_${page}.json`, {
-          cache: 'no-store',
-          headers: { 'Accept': 'application/json' }
-        });
+        const response = await fetch(`${base}/search_page_${page}.json`, { cache:'no-store', headers:{'Accept':'application/json'} });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (!Array.isArray(data.results)) throw new Error('Neveljaven JSON');
         return data.results;
       } catch (err) {
         lastError = err;
-        console.warn(`Slovenia mirror page ${page}:`, base, err);
       }
     }
-    throw new Error(`Podatkovne strani ${page} ni bilo mogoče naložiti: ${lastError?.message || ''}`);
+    throw lastError || new Error(`Mirror stran ${page} ni dosegljiva`);
   }
 
-  const pages = await Promise.all(Array.from({ length: pageCount }, (_, i) => fetchPage(i + 1)));
-  const all = pages.flat();
-  const seen = new Set();
-  const stations = [];
+  const pages = await Promise.all(Array.from({length:pageCount}, (_,i) => fetchPage(i+1)));
+  return { rows: pages.flat(), source: 'goriva.si · goriva-data mirror' };
+}
 
-  for (const s of all) {
-    if (seen.has(s.pk)) continue;
-    seen.add(s.pk);
+function normalizeSloveniaRows(rows, source) {
+  const seen = new Set();
+  const out = [];
+  for (const s of rows) {
+    const pk = s.pk ?? `${s.name}-${s.lat}-${s.lng}`;
+    if (seen.has(pk)) continue;
+    seen.add(pk);
 
     const lat = Number(s.lat);
     const lon = Number(s.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-
     const d = haversine(state.lat, state.lon, lat, lon);
     if (d > state.radiusKm + 0.15) continue;
 
     const rawPrice = s.prices?.dizel;
     const diesel = rawPrice == null ? null : Number(String(rawPrice).replace(',', '.'));
-
-    stations.push({
-      id: `si-${s.pk}`,
+    out.push({
+      id: `si-${pk}`,
       lat,
       lon,
       name: String(s.name || 'Bencinska črpalka').trim(),
@@ -221,12 +269,33 @@ async function fetchSloveniaPrices() {
       address: [s.address, s.zip_code].filter(Boolean).join(', '),
       diesel: Number.isFinite(diesel) && diesel > 0 ? diesel : null,
       priceUpdated: null,
-      priceSource: 'goriva.si · podatkovni mirror goriva-data',
+      priceSource: source,
       distanceKm: d
     });
   }
+  return out;
+}
 
-  return stations;
+async function fetchSloveniaPrices() {
+  // 5-minutni pomnilnik: pri ponovnem razvrščanju/osveževanju ne nalagamo cele Slovenije znova.
+  if (sloveniaPriceCache && Date.now() - sloveniaPriceCacheAt < 5 * 60 * 1000) {
+    return {
+      stations: normalizeSloveniaRows(sloveniaPriceCache.rows, sloveniaPriceCache.source),
+      source: sloveniaPriceCache.source
+    };
+  }
+
+  let dataset;
+  try {
+    dataset = await fetchGorivaSiLive();
+  } catch (liveErr) {
+    console.warn('Live goriva.si ni dosegljiv, poskušam mirror:', liveErr);
+    dataset = await fetchGorivaMirror();
+  }
+
+  sloveniaPriceCache = dataset;
+  sloveniaPriceCacheAt = Date.now();
+  return { stations: normalizeSloveniaRows(dataset.rows, dataset.source), source: dataset.source };
 }
 
 async function fetchGermanyPrices() {
@@ -322,9 +391,12 @@ async function loadStations() {
 
     // Country adapters: each country can provide station-level prices in one common format.
     // Slovenia uses a browser-friendly mirror of the goriva.si API dataset.
+    let activePriceSource = '';
     if (country === 'SI') {
       try {
-        priced = await fetchSloveniaPrices();
+        const siResult = await fetchSloveniaPrices();
+        priced = siResult.stations;
+        activePriceSource = siResult.source;
       } catch (e) {
         console.warn('Slovenia price API:', e);
         priceWarning = ' · slovenski cenik trenutno ni dosegljiv';
@@ -343,7 +415,7 @@ async function loadStations() {
     state.stations = mergeStations(osm, priced).filter(s => s.distanceKm <= state.radiusKm + 0.1);
     renderStations();
     const pricedCount = state.stations.filter(s => s.diesel != null).length;
-    els.status.textContent = `${state.stations.length} črpalk · ${pricedCount} s ceno · ${state.radiusKm} km${country ? ` · ${country}` : ''}${priceWarning}`;
+    els.status.textContent = `${state.stations.length} črpalk · ${pricedCount} s ceno · ${state.radiusKm} km${country ? ` · ${country}` : ''}${activePriceSource ? ` · ${activePriceSource}` : ''}${priceWarning}`;
   } catch (err) {
     console.error(err);
     const detail = escapeHtml(err?.message || 'Neznana napaka');
