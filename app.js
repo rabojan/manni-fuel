@@ -13,7 +13,7 @@ const state={
   apiBase:(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,''),
   stations:[],markerLayer:null,userMarker:null,searchMarker:null,circle:null,
   searchMode:'gps',dataRoute:'',lastUpdated:null,requestSeq:0,
-  sheetState:0,autoTimer:null,programmaticUntil:0,isLoading:false
+  sheetState:0,autoTimer:null,programmaticUntil:0,isLoading:false,osmCache:new Map()
 };
 const $=id=>document.getElementById(id);
 const els={
@@ -100,13 +100,40 @@ async function fetchStationsFast(){
 }
 async function fetchOsmQuick(){
   const {lat,lon}=state.center,r=Math.round(state.radiusKm*1000);
+  const key=`${Math.round(lat*20)/20}:${Math.round(lon*20)/20}:${state.radiusKm}`;
+  const hit=state.osmCache.get(key);
+  if(hit && Date.now()-hit.time<5*60*1000)return hit.rows;
   const q=`[out:json][timeout:5];nwr["amenity"="fuel"](around:${r},${lat},${lon});out center tags;`;
-  const c=new AbortController(),t=setTimeout(()=>c.abort(),5000);
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),4500);
   try{
     const rr=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({data:q}),signal:c.signal});
     if(!rr.ok)throw new Error('OSM '+rr.status);const j=await rr.json();
-    return (j.elements||[]).map(e=>{const la=e.lat??e.center?.lat,lo=e.lon??e.center?.lon,t=e.tags||{};if(la==null||lo==null)return null;return{id:'osm-'+e.id,name:t.name||t.brand||t.operator||'Bencinska črpalka',brand:t.brand||'',address:[t['addr:street'],t['addr:housenumber'],t['addr:city']].filter(Boolean).join(' '),lat:la,lon:lo,country:'',price:null,currency:'EUR',updated:null}}).filter(Boolean);
+    const rows=(j.elements||[]).map(e=>{const la=e.lat??e.center?.lat,lo=e.lon??e.center?.lon,t=e.tags||{};if(la==null||lo==null)return null;return{id:'osm-'+e.id,name:t.name||t.brand||t.operator||'Bencinska črpalka',brand:t.brand||'',address:[t['addr:street'],t['addr:housenumber'],t['addr:city']].filter(Boolean).join(' '),lat:la,lon:lo,country:'',price:null,currency:'EUR',updated:null}}).filter(Boolean);
+    state.osmCache.set(key,{time:Date.now(),rows});
+    return rows;
   }finally{clearTimeout(t)}
+}
+function normText(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function words(v){return new Set(normText(v).split(/\s+/).filter(x=>x.length>1))}
+function nameMatch(a,b){
+  const A=words(`${a.name||''} ${a.brand||''}`),B=words(`${b.name||''} ${b.brand||''}`);
+  if(!A.size||!B.size)return false;
+  for(const w of A)if(B.has(w))return true;
+  return false;
+}
+function ageHours(iso){if(!iso)return Infinity;const t=new Date(iso).getTime();return Number.isFinite(t)?Math.max(0,(Date.now()-t)/3600000):Infinity}
+function applyConfidence(priced,osmRows){
+  return priced.map(s=>{
+    let nearest=null,nearestD=Infinity;
+    for(const o of osmRows){const d=hkm(s.lat,s.lon,o.lat,o.lon);if(d<nearestD){nearestD=d;nearest=o}}
+    const matched=nearest && (nearestD<=0.08 || (nearestD<=0.18 && nameMatch(s,nearest)));
+    const fresh=ageHours(s.updated)<=36;
+    const hasIdentity=Boolean((s.name&&s.name!=='Bencinska črpalka') || s.brand);
+    let confidence='low';
+    if(matched) confidence='verified';
+    else if(fresh && hasIdentity && s.price!=null) confidence='likely';
+    return {...s,confidence,osmDistanceKm:Number.isFinite(nearestD)?nearestD:null};
+  }).filter(s=>s.confidence!=='low');
 }
 function normalize(features){
   const out=[];for(const f of features){const c=f.geometry?.coordinates,p=f.properties||{};if(!Array.isArray(c))continue;const lon=Number(c[0]),lat=Number(c[1]);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const d=hkm(state.center.lat,state.center.lon,lat,lon);if(d>state.radiusKm+.2)continue;let price=p.price==null?null:Number(p.price);if(!Number.isFinite(price)||price<=0)price=null;out.push({id:String(p.id||p.externalId||`${lat}-${lon}`),name:p.name||p.brand||'Bencinska črpalka',brand:p.brand||'',address:[p.address,p.city].filter(Boolean).join(', '),lat,lon,country:p.country||'',price,currency:p.currency||'EUR',updated:p.reportedAt||null,distance:d,source:'Pumperly'})}return out
@@ -118,18 +145,25 @@ async function loadStations({keepExisting=true}={}){
   if(!state.center||state.isLoading)return;
   const seq=++state.requestSeq;state.isLoading=true;
   els.status.textContent='Posodabljam cene …';els.updated.textContent='Posodabljam …';
-  if(!keepExisting&&!state.stations.length)els.stationList.innerHTML='<div class="loading">Iščem najbližje cene dizla …</div>';
-  const start=performance.now();let priced=[],err=null;
+  if(!keepExisting&&!state.stations.length)els.stationList.innerHTML='<div class="loading">Iščem preverjene cene dizla …</div>';
+  const start=performance.now();let priced=[],osmRows=[],err=null;
   try{priced=normalize(await fetchStationsFast())}catch(e){err=e;console.warn(e)}
   if(seq!==state.requestSeq){state.isLoading=false;return}
-  let rows=priced;
-  if(!rows.length){try{rows=normalizeOsm(await fetchOsmQuick())}catch(e){console.warn(e)}}
+  try{osmRows=await fetchOsmQuick()}catch(e){console.warn('OSM preverjanje ni uspelo',e)}
   if(seq!==state.requestSeq){state.isLoading=false;return}
-  // Če je bila poizvedba neuspešna, ne briši že prikazanih rezultatov zaradi menijev ali kratke omrežne napake.
+
+  let rows=[];
+  if(priced.length){
+    rows=applyConfidence(priced,osmRows);
+    // Če OSM začasno odpove, ohrani samo sveže cenovne zapise z jasno identiteto.
+    if(!osmRows.length) rows=priced.map(s=>({...s,confidence:(ageHours(s.updated)<=36&&((s.name&&s.name!=='Bencinska črpalka')||s.brand))?'likely':'low'})).filter(s=>s.confidence!=='low');
+  }
+  // OSM-only lokacij brez cene namenoma ne prikazujemo.
   if(rows.length||!keepExisting||!state.stations.length){state.stations=dedupe(rows);render()}
+  const hidden=Math.max(0,priced.length-state.stations.length);
   const ms=Math.round(performance.now()-start),pc=state.stations.filter(s=>s.price!=null).length;
   els.updated.textContent='Posodobljeno pravkar';
-  els.status.textContent=`${state.stations.length} črpalk · ${pc} s ceno · ${ms} ms${err?' · rezervni način':''}`;
+  els.status.textContent=`${state.stations.length} preverjenih črpalk · ${pc} s ceno · ${ms} ms${hidden?` · ${hidden} skritih`:''}${err?' · rezervni način':''}`;
   state.isLoading=false;
 }
 
@@ -143,9 +177,9 @@ function render(){
   for(const s of arr){
     const m=L.marker([s.lat,s.lon],{icon:markerIcon(s)}).bindPopup(`<b>${escapeHtml(s.name)}</b><br>${s.distance.toFixed(1)} km<br>${escapeHtml(nativePrice(s)||'Cena ni na voljo')}`);
     state.markerLayer.addLayer(m);
-    const age=timeAgo(s.updated),flag=EURO[s.country]||'';
+    const age=timeAgo(s.updated),flag=EURO[s.country]||'',conf=s.confidence==='verified'?'✓ preverjeno':'● aktualen vir';
     const art=document.createElement('article');art.className='station-card';
-    art.innerHTML=`<div class="station-top"><div class="brand-icon">${escapeHtml(brandLetters(s.name,s.brand))}</div><div class="station-main"><div class="station-name">${flag} ${escapeHtml(s.name)}</div><div class="station-address">${escapeHtml(s.address||s.brand||'')}</div></div></div><div class="station-price-row"><div class="price-block"><div class="price-line">Cena ${s.price!=null?`<strong>${escapeHtml(nativePrice(s))}</strong>`:'<strong style="color:#a0aaa7">—</strong>'}</div><div class="price-sub">${age?`Posodobljeno ${escapeHtml(age)}`:`Vir: ${escapeHtml(s.source)}`}</div></div><div class="right-actions"><div class="distance">${age?`<span class="fresh">✓ ${escapeHtml(age)}</span>`:''}→ ${s.distance.toFixed(1)} km</div><a class="nav-btn" href="${googleNav(s)}" target="_blank" rel="noopener">Navigiraj</a></div></div>`;
+    art.innerHTML=`<div class="station-top"><div class="brand-icon">${escapeHtml(brandLetters(s.name,s.brand))}</div><div class="station-main"><div class="station-name">${flag} ${escapeHtml(s.name)}</div><div class="station-address">${escapeHtml(s.address||s.brand||'')}</div></div></div><div class="station-price-row"><div class="price-block"><div class="price-line">Cena ${s.price!=null?`<strong>${escapeHtml(nativePrice(s))}</strong>`:'<strong style="color:#a0aaa7">—</strong>'}</div><div class="price-sub"><span class="confidence ${s.confidence==='verified'?'verified':'likely'}">${escapeHtml(conf)}</span>${age?` · ${escapeHtml(age)}`:''}</div></div><div class="right-actions"><div class="distance">${age?`<span class="fresh">✓ ${escapeHtml(age)}</span>`:''}→ ${s.distance.toFixed(1)} km</div><a class="nav-btn" href="${googleNav(s)}" target="_blank" rel="noopener">Navigiraj</a></div></div>`;
     els.stationList.appendChild(art);
   }
 }
@@ -198,12 +232,41 @@ els.refresh.addEventListener('click',()=>loadStations({keepExisting:true}));
 els.locate.addEventListener('click',()=>locate(true));
 els.sort.addEventListener('change',()=>render());
 els.sheetToggle.addEventListener('click',e=>{e.stopPropagation();toggleSheet()});
+els.dragZone.addEventListener('click',e=>{if(e.target===els.sheetToggle)return;toggleSheet()});
+
+// Pointer Events za namizne brskalnike in novejše telefone.
 els.dragZone.addEventListener('pointerdown',pointerDown);
 els.dragZone.addEventListener('pointermove',pointerMove);
 els.dragZone.addEventListener('pointerup',pointerUp);
 els.dragZone.addEventListener('pointercancel',pointerUp);
+
+// Posebej za iPhone/Safari: Touch Events, ker je vlečenje bottom sheeta tam zanesljivejše.
+let touchDrag={active:false,startY:0,startH:0};
+function touchStart(e){
+  if(!e.touches||e.touches.length!==1)return;
+  touchDrag.active=true;touchDrag.startY=e.touches[0].clientY;touchDrag.startH=state.sheet.getBoundingClientRect().height;
+  els.dragZone.classList.add('dragging');state.sheet.style.transition='none';
+}
+function touchMove(e){
+  if(!touchDrag.active||!e.touches||!e.touches.length)return;
+  const dy=touchDrag.startY-e.touches[0].clientY;
+  const minH=Math.max(176,innerHeight*.22),maxH=innerHeight*.50;
+  state.sheet.style.height=Math.max(minH,Math.min(maxH,touchDrag.startH+dy))+'px';
+  e.preventDefault();
+}
+function touchEnd(e){
+  if(!touchDrag.active)return;
+  const ratio=state.sheet.getBoundingClientRect().height/innerHeight;
+  touchDrag.active=false;els.dragZone.classList.remove('dragging');state.sheet.style.transition='';
+  setSheetState(ratio>.31);
+  if(e)e.preventDefault();
+}
+els.dragZone.addEventListener('touchstart',touchStart,{passive:true});
+els.dragZone.addEventListener('touchmove',touchMove,{passive:false});
+els.dragZone.addEventListener('touchend',touchEnd,{passive:false});
+els.dragZone.addEventListener('touchcancel',touchEnd,{passive:false});
 els.dragZone.addEventListener('dblclick',toggleSheet);
 
 initMap();locate(true);
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
-console.info("Manni Fuel UI 2.6.0 — clusters, auto-search, stable filters, draggable sheet");
+console.info("Manni Fuel UI 2.7.0 — clusters, auto-search, stable filters, draggable sheet");

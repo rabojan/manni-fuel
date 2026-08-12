@@ -1,9 +1,9 @@
-# Manni Fuel 2.6 — mobile fixes
+# Manni Fuel 2.7
 
-- marker clustering pri oddaljenem zemljevidu
-- samodejno iskanje po premiku/zoomu zemljevida
-- delujoč bottom sheet: spodaj ena črpalka, zgoraj največ 50 % zaslona
-- Diesel je statičen prikaz (ni več okna, ker je trenutno na voljo samo B7)
-- stabilno razvrščanje brez brisanja rezultatov
-- Manni's World splash je prikazan 5 sekund
-- Cloudflare Worker je privzeto nastavljen
+- iPhone/Safari bottom-sheet touch drag fix
+- confidence filter: Pumperly price + OSM location cross-check
+- OSM-only stations without price are hidden
+- suspicious/stale unmatched stations are hidden by default
+- verified/likely confidence badge in station cards
+- 5-second Manni's World splash remains
+- Cloudflare Worker remains unchanged
