@@ -1,7 +1,3 @@
-# Manni Fuel 2.3 — Manni's World final
+# Manni's World — Fuel 2.4
 
-Mobile-first Manni Fuel z uvodnim zaslonom Manni's World.
-
-Ob odprtju se za približno 2,8 sekunde prikaže `manni-world-splash.png`, nato aplikacija mehko preide na zemljevid. Dotik splash zaslona ga preskoči.
-
-Cloudflare Worker ostaja enak kot v Manni Fuel 2.0.
+Končna mobile-first postavitev: oranžen Manni's World header, velik zemljevid, spodnji panel z eno črpalko v osnovnem položaju in največ 50 % zaslona v razširjenem položaju. Cloudflare Worker je privzeto nastavljen v aplikaciji.

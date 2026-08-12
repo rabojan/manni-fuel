@@ -1,11 +1,11 @@
 {
-  "name":"Manni Fuel 2.3",
-  "short_name":"Manni Fuel",
+  "name":"Manni's World — Fuel",
+  "short_name":"Manni's World",
   "start_url":"./",
   "display":"standalone",
   "orientation":"portrait",
-  "background_color":"#0b1d1b",
-  "theme_color":"#0b1d1b",
+  "background_color":"#f47a18",
+  "theme_color":"#f47a18",
   "description":"Hitro iskanje cen dizla in bencinskih črpalk po Evropi",
   "icons":[
     {"src":"icon-192.png","sizes":"192x192","type":"image/png"},

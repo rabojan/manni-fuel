@@ -18,7 +18,7 @@ const state={
   apiBase:(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,''),
   stations:[],markers:[],userMarker:null,searchMarker:null,circle:null,
   searchMode:'gps',dataRoute:'',lastUpdated:null,requestSeq:0,
-  sheetState:1
+  sheetState:0
 };
 const $=id=>document.getElementById(id);
 const els={
@@ -103,7 +103,7 @@ function dedupe(rows){const a=[...rows].sort((x,y)=>(x.price==null)-(y.price==nu
 async function loadStations(){
   if(!state.center)return;
   const seq=++state.requestSeq;
-  els.status.textContent='Nalagam cene …';els.updated.textContent='Updating…';els.stationList.innerHTML='<div class="loading">Iščem najbližje cene dizla …</div>';
+  els.status.textContent='Nalagam cene …';els.updated.textContent='Posodabljam …';els.stationList.innerHTML='<div class="loading">Iščem najbližje cene dizla …</div>';
   const start=performance.now();let priced=[],err=null;
   try{priced=normalize(await fetchStationsFast())}catch(e){err=e;console.warn(e)}
   if(seq!==state.requestSeq)return;
@@ -112,7 +112,7 @@ async function loadStations(){
   if(!rows.length){try{rows=normalizeOsm(await fetchOsmQuick())}catch(e){console.warn(e)}}
   state.stations=dedupe(rows);state.lastUpdated=new Date();render();
   const ms=Math.round(performance.now()-start),pc=state.stations.filter(s=>s.price!=null).length;
-  els.updated.textContent='Updated just now';
+  els.updated.textContent='Posodobljeno pravkar';
   els.status.textContent=`${state.stations.length} črpalk · ${pc} s ceno · ${ms} ms${err?' · rezervni način':''}`;
   els.searchArea.classList.add('hidden');
 }
@@ -128,17 +128,17 @@ function render(){
     const m=L.marker([s.lat,s.lon],{icon:markerIcon(s)}).addTo(state.map).bindPopup(`<b>${escapeHtml(s.name)}</b><br>${s.distance.toFixed(1)} km<br>${escapeHtml(nativePrice(s)||'Cena ni na voljo')}`);state.markers.push(m);
     const age=timeAgo(s.updated),flag=EURO[s.country]||'';
     const art=document.createElement('article');art.className='station-card';
-    art.innerHTML=`<div class="station-top"><div class="brand-icon">${escapeHtml(brandLetters(s.name,s.brand))}</div><div class="station-main"><div class="station-name">${flag} ${escapeHtml(s.name)}</div><div class="station-address">${escapeHtml(s.address||s.brand||'')}</div></div></div><div class="station-price-row"><div class="price-block"><div class="price-line">Price ${s.price!=null?`<strong>${escapeHtml(nativePrice(s))}</strong>`:'<strong style="color:rgba(255,255,255,.5)">—</strong>'}</div><div class="price-sub">${age?`Updated ${escapeHtml(age)} ago`:`Vir: ${escapeHtml(s.source)}`}</div></div><div class="right-actions"><div class="distance">${age?`<span class="fresh">✓ ${escapeHtml(age)}</span>`:''}→ ${s.distance.toFixed(1)} km</div><a class="nav-btn" href="${googleNav(s)}" target="_blank" rel="noopener">Navigate</a></div></div>`;
+    art.innerHTML=`<div class="station-top"><div class="brand-icon">${escapeHtml(brandLetters(s.name,s.brand))}</div><div class="station-main"><div class="station-name">${flag} ${escapeHtml(s.name)}</div><div class="station-address">${escapeHtml(s.address||s.brand||'')}</div></div></div><div class="station-price-row"><div class="price-block"><div class="price-line">Cena ${s.price!=null?`<strong>${escapeHtml(nativePrice(s))}</strong>`:'<strong style="color:rgba(255,255,255,.5)">—</strong>'}</div><div class="price-sub">${age?`Posodobljeno ${escapeHtml(age)}`:`Vir: ${escapeHtml(s.source)}`}</div></div><div class="right-actions"><div class="distance">${age?`<span class="fresh">✓ ${escapeHtml(age)}</span>`:''}→ ${s.distance.toFixed(1)} km</div><a class="nav-btn" href="${googleNav(s)}" target="_blank" rel="noopener">Navigiraj</a></div></div>`;
     els.stationList.appendChild(art);
   }
 }
 
 function searchMap(){const c=state.map.getCenter();setSearchCenter(c.lat,c.lng,'map',false);loadStations()}
-function cycleSheet(){state.sheetState=(state.sheetState+1)%3;state.sheet.classList.remove('sheet-low','sheet-half','sheet-high');state.sheet.classList.add(['sheet-low','sheet-half','sheet-high'][state.sheetState])}
+function cycleSheet(){state.sheetState=state.sheetState===0?1:0;state.sheet.classList.remove('sheet-low','sheet-half');state.sheet.classList.add(state.sheetState===0?'sheet-low':'sheet-half')}
 let dragStartY=null,dragStartH=0;
 function dragStart(e){dragStartY=e.touches?e.touches[0].clientY:e.clientY;dragStartH=state.sheet.getBoundingClientRect().height;state.sheet.style.transition='none'}
-function dragMove(e){if(dragStartY==null)return;const y=e.touches?e.touches[0].clientY:e.clientY,dy=dragStartY-y;const h=Math.max(innerHeight*.28,Math.min(innerHeight*.88,dragStartH+dy));state.sheet.style.height=h+'px'}
-function dragEnd(){if(dragStartY==null)return;const h=state.sheet.getBoundingClientRect().height/innerHeight;state.sheet.style.height='';state.sheet.style.transition='height .24s ease';state.sheetState=h<.43?0:h<.72?1:2;state.sheet.classList.remove('sheet-low','sheet-half','sheet-high');state.sheet.classList.add(['sheet-low','sheet-half','sheet-high'][state.sheetState]);dragStartY=null}
+function dragMove(e){if(dragStartY==null)return;const y=e.touches?e.touches[0].clientY:e.clientY,dy=dragStartY-y;const h=Math.max(innerHeight*.18,Math.min(innerHeight*.50,dragStartH+dy));state.sheet.style.height=h+'px'}
+function dragEnd(){if(dragStartY==null)return;const h=state.sheet.getBoundingClientRect().height/innerHeight;state.sheet.style.height='';state.sheet.style.transition='height .24s ease';state.sheetState=h>.34?1:0;state.sheet.classList.remove('sheet-low','sheet-half');state.sheet.classList.add(state.sheetState===0?'sheet-low':'sheet-half');dragStartY=null}
 
 $('settingsBtn').addEventListener('click',()=>{els.radius.value=state.radiusKm;els.fuel.value=state.fuel;els.api.value=state.apiBase;els.settings.showModal()});
 $('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){setSearchCenter(state.center.lat,state.center.lon,state.searchMode,true);loadStations()}});

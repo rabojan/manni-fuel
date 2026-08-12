@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1d1b" />
+  <meta name="theme-color" content="#f47a18" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Manni Fuel 2.0</title>
+  <title>Manni's World — Fuel</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
@@ -21,43 +21,37 @@
   <div id="app">
     <div id="map" aria-label="Zemljevid bencinskih črpalk"></div>
 
+    <header class="brand-header">
+      <div class="brand-title"><span class="camper-mark">🚐</span><span>Manni's World</span></div>
+      <button id="settingsBtn" class="header-btn" aria-label="Nastavitve">⚙︎</button>
+    </header>
+
     <div class="top-controls">
-      <button id="locateBtn" class="floating-btn icon-only" aria-label="Moja lokacija">➤</button>
-      <div class="control-pill">
-        <button id="refreshBtn" class="pill-action" aria-label="Osveži">↻</button>
-        <div class="pill-value" id="bestPrice">—</div>
-        <div class="pill-divider"></div>
-        <button id="fuelBtn" class="pill-select">Diesel <span>⌄</span></button>
-        <div class="pill-divider"></div>
-        <button id="settingsBtn" class="pill-more" aria-label="Nastavitve">•••</button>
+      <button id="refreshBtn" class="filter-chip refresh-chip" aria-label="Osveži">↻</button>
+      <button id="fuelBtn" class="filter-chip fuel-chip">⛽ Diesel <span>⌄</span></button>
+      <div class="filter-chip price-chip"><span class="chip-label">Najnižja</span><strong id="bestPrice">—</strong></div>
+      <div class="filter-chip sort-chip">
+        <select id="sortSelect" aria-label="Razvrsti">
+          <option value="price">Najcenejše</option>
+          <option value="distance">Najbližje</option>
+        </select>
       </div>
     </div>
 
+    <button id="locateBtn" class="floating-btn" aria-label="Moja lokacija">➤</button>
     <button id="searchAreaBtn" class="search-area-btn hidden">⛽ Poišči na tem območju</button>
 
-    <section id="sheet" class="bottom-sheet sheet-half" aria-label="Bencinske črpalke">
+    <section id="sheet" class="bottom-sheet sheet-low" aria-label="Bencinske črpalke">
       <div id="sheetHandle" class="sheet-handle-wrap" aria-label="Povleci seznam">
         <div class="sheet-handle"></div>
       </div>
 
-      <div class="sheet-tools">
-        <button id="etaBtn" class="eta-btn" type="button" disabled title="ETA bomo dodali v naslednji fazi">
-          ◴ <span>Calculate ETAs</span><small>kmalu</small>
-        </button>
-      </div>
-
       <div class="sheet-head">
         <div>
-          <h1>Fuel stations</h1>
+          <h1>Bencinske črpalke</h1>
           <p id="updatedText">Nalagam podatke …</p>
         </div>
-        <div class="sort-wrap">
-          <label for="sortSelect">Sort</label>
-          <select id="sortSelect">
-            <option value="price">By price</option>
-            <option value="distance">By distance</option>
-          </select>
-        </div>
+        <div class="sheet-hint">Povleci ↑</div>
       </div>
 
       <div id="statusBar" class="status-bar">Pridobivam tvojo lokacijo …</div>
@@ -68,7 +62,7 @@
       <form method="dialog" class="settings-card">
         <div class="settings-head">
           <div>
-            <span class="eyebrow">Manni Fuel 2.0</span>
+            <span class="eyebrow">Manni's World</span>
             <h2>Nastavitve</h2>
           </div>
           <button value="cancel" class="close-btn" aria-label="Zapri">✕</button>
@@ -94,14 +88,9 @@
 
         <label class="field">
           <span>Manni API — Cloudflare Worker</span>
-          <input id="apiBaseInput" type="url" placeholder="https://manni-fuel-api....workers.dev" autocomplete="off" />
-          <small>Za hitro delovanje je priporočljiv tvoj Worker. Brez njega aplikacija uporabi neposredni Pumperly z zelo kratkim timeoutom.</small>
+          <input id="apiBaseInput" type="url" autocomplete="off" />
+          <small>Worker je že nastavljen kot privzeti vir, zato aplikacija deluje enako na telefonu in računalniku.</small>
         </label>
-
-        <div class="info-box">
-          <strong>Hitri način</strong>
-          <span>Worker uporablja Cloudflare cache in iste geografske celice ponovno servira takoj.</span>
-        </div>
 
         <button id="saveSettingsBtn" value="default" class="save-btn">Shrani</button>
       </form>
