@@ -18,3 +18,12 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
 @media(min-width:760px){.brand-header{left:18px;right:18px;top:14px;border-radius:18px;height:58px;padding:0 18px}.top-controls{left:28px;right:auto;top:86px}.floating-btn{right:28px;top:86px}.bottom-sheet{left:auto;right:18px;width:390px}.bottom-sheet.sheet-low{height:245px}.bottom-sheet.sheet-half{height:50vh}}
 
 .confidence{display:inline-block;font-size:9px;font-weight:850;border-radius:999px;padding:2px 6px}.confidence.verified{background:#e5f8ef;color:#167a58}.confidence.likely{background:#fff2dd;color:#a55c00}
+/* 3.1 stable bottom sheet */
+.bottom-sheet{height:190px!important;min-height:190px!important;max-height:55vh!important;transition:height .28s cubic-bezier(.2,.8,.2,1)!important}
+.bottom-sheet.sheet-low{height:190px!important;min-height:190px!important}
+.bottom-sheet.sheet-open{height:55vh!important;min-height:0!important;max-height:55vh!important}
+.sheet-drag-zone{touch-action:pan-x;cursor:pointer}
+.sheet-hint{background:#fff3e8!important;color:#c95e08!important;border-radius:999px!important;padding:9px 12px!important;min-width:118px!important;text-align:center!important}
+.sheet-open .status-bar{display:block!important}.sheet-open .station-list{overflow-y:auto!important;padding-bottom:18px!important}.sheet-open .station-card{display:block!important}
+.sheet-low .station-list{overflow:hidden!important}.sheet-low .station-card:not(:first-child){display:none!important}
+.manni-popup strong{color:#f47a18;font-size:16px}

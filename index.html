@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="styles.css?v=2.9.0" />
+  <link rel="stylesheet" href="styles.css?v=3.1.0" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -50,7 +50,7 @@
           <h1>Bencinske črpalke</h1>
           <p id="updatedText">Nalagam podatke …</p>
         </div>
-        <button id="sheetToggle" class="sheet-hint" type="button" onclick="window.manniToggleSheet && window.manniToggleSheet()">Povleci ↑</button>
+        <button id="sheetToggle" class="sheet-hint" type="button" onclick="window.manniToggleSheet && window.manniToggleSheet()">Prikaži seznam ↑</button>
         </div>
       </div>
 
@@ -100,7 +100,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
-  // Manni Fuel 2.5: one-time cache reset so iPhone/Safari cannot keep the old UI.
+  // Development cache reset: always load the newest Manni Fuel UI.
   (async function(){
     try {
       if ('serviceWorker' in navigator) {
@@ -114,6 +114,6 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="app.js?v=2.9.0"></script>
+<script src="app.js?v=3.1.0"></script>
 </body>
 </html>
