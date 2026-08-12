@@ -1,385 +1,138 @@
-const state = {
-  lat: null,
-  lon: null,
-  gpsLat: null,
-  gpsLon: null,
-  searchMode: 'gps',
-  radiusKm: Number(localStorage.getItem('radiusKm') || 20),
-  fuel: 'B7',
-  stations: [],
-  markers: [],
-  userMarker: null,
-  circle: null,
-  searchCenterMarker: null,
-  map: null,
-  rates: { EUR: 1 },
-  ratesDate: null,
-  dataRoute: '',
-  apiBase: (localStorage.getItem('manniApiBase') || '').replace(/\/$/, '')
+const state={
+  map:null,
+  gps:null,
+  center:null,
+  radiusKm:Number(localStorage.getItem('radiusKm')||20),
+  fuel:localStorage.getItem('fuel')||'B7',
+  apiBase:(localStorage.getItem('manniApiBase')||'').replace(/\/$/,''),
+  stations:[],markers:[],userMarker:null,searchMarker:null,circle:null,
+  searchMode:'gps',dataRoute:'',lastUpdated:null,requestSeq:0,
+  sheetState:1
+};
+const $=id=>document.getElementById(id);
+const els={
+  stationList:$('stationList'),status:$('statusBar'),updated:$('updatedText'),bestPrice:$('bestPrice'),
+  sort:$('sortSelect'),searchArea:$('searchAreaBtn'),sheet:$('sheet'),handle:$('sheetHandle'),
+  radius:$('radiusSelect'),fuel:$('fuelSelect'),api:$('apiBaseInput'),settings:$('settingsDialog'),
+  refresh:$('refreshBtn'),locate:$('locateBtn')
 };
 
-const els = {
-  status: document.getElementById('statusText'),
-  stationList: document.getElementById('stationList'),
-  stationCount: document.getElementById('stationCount'),
-  radiusLabel: document.getElementById('radiusLabel'),
-  radiusSelect: document.getElementById('radiusSelect'),
-  fuelSelect: document.getElementById('fuelSelect'),
-  settings: document.getElementById('settingsDialog'),
-  sort: document.getElementById('sortSelect'),
-  refresh: document.getElementById('refreshBtn'),
-  listInfo: document.getElementById('listInfo'),
-  apiBaseInput: document.getElementById('apiBaseInput'),
-  searchMapBtn: document.getElementById('searchMapBtn'),
-  searchModeLabel: document.getElementById('searchModeLabel')
-};
+const EURO={AT:'🇦🇹',BE:'🇧🇪',BA:'🇧🇦',BG:'🇧🇬',CH:'🇨🇭',CZ:'🇨🇿',DE:'🇩🇪',DK:'🇩🇰',EE:'🇪🇪',ES:'🇪🇸',FI:'🇫🇮',FR:'🇫🇷',GB:'🇬🇧',GR:'🇬🇷',HR:'🇭🇷',HU:'🇭🇺',IE:'🇮🇪',IT:'🇮🇹',LT:'🇱🇹',LU:'🇱🇺',LV:'🇱🇻',MK:'🇲🇰',NL:'🇳🇱',NO:'🇳🇴',PL:'🇵🇱',PT:'🇵🇹',RO:'🇷🇴',RS:'🇷🇸',SE:'🇸🇪',SI:'🇸🇮',SK:'🇸🇰'};
 
-const EUROPE = {
-  ES:['🇪🇸','Španija'], FR:['🇫🇷','Francija'], DE:['🇩🇪','Nemčija'], IT:['🇮🇹','Italija'], GB:['🇬🇧','Združeno kraljestvo'],
-  AT:['🇦🇹','Avstrija'], PT:['🇵🇹','Portugalska'], SI:['🇸🇮','Slovenija'], NL:['🇳🇱','Nizozemska'], BE:['🇧🇪','Belgija'],
-  LU:['🇱🇺','Luksemburg'], RO:['🇷🇴','Romunija'], GR:['🇬🇷','Grčija'], IE:['🇮🇪','Irska'], HR:['🇭🇷','Hrvaška'],
-  CH:['🇨🇭','Švica'], PL:['🇵🇱','Poljska'], CZ:['🇨🇿','Češka'], HU:['🇭🇺','Madžarska'], BG:['🇧🇬','Bolgarija'],
-  SK:['🇸🇰','Slovaška'], DK:['🇩🇰','Danska'], SE:['🇸🇪','Švedska'], NO:['🇳🇴','Norveška'], RS:['🇷🇸','Srbija'],
-  FI:['🇫🇮','Finska'], EE:['🇪🇪','Estonija'], LV:['🇱🇻','Latvija'], LT:['🇱🇹','Litva'], BA:['🇧🇦','BiH'], MK:['🇲🇰','Severna Makedonija']
-};
-
-const WRAPPERS = [
-  { name:'Pumperly neposredno', wrap:u=>u },
-  { name:'Pumperly prek AllOrigins', wrap:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u) },
-  { name:'Pumperly prek corsproxy.io', wrap:u=>'https://corsproxy.io/?url='+encodeURIComponent(u) }
-];
-
-function initMap() {
-  state.map = L.map('map', { zoomControl: true }).setView([46.15, 14.99], 8);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(state.map);
+function initMap(){
+  state.map=L.map('map',{zoomControl:false,attributionControl:true}).setView([46.15,14.99],8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(state.map);
+  state.map.on('movestart',()=>els.searchArea.classList.remove('hidden'));
 }
+function hkm(a,b,c,d){const R=6371,p=Math.PI/180,da=(c-a)*p,do_=(d-b)*p;const x=Math.sin(da/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(do_/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function googleNav(s){return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.lat+','+s.lon)}&travelmode=driving`}
+function timeAgo(iso){if(!iso)return'';const t=new Date(iso).getTime();if(!Number.isFinite(t))return'';const m=Math.max(0,Math.round((Date.now()-t)/60000));if(m<2)return'just now';if(m<60)return`${m} min`;const h=Math.round(m/60);if(h<48)return`${h} h`;return`${Math.round(h/24)} d`}
+function nativePrice(s){if(s.price==null)return null;const d=['HUF','RSD'].includes(s.currency)?1:3;return `${Number(s.price).toFixed(d)} ${s.currency||'EUR'}`}
+function brandLetters(name,brand){const x=(brand||name||'FS').trim().split(/\s+/).filter(Boolean);return (x.length>1?x.slice(0,2).map(v=>v[0]).join(''):x[0]?.slice(0,2)||'FS').toUpperCase()}
+function bbox(lat,lon,r){const dy=r/111.32,dx=r/Math.max(15,111.32*Math.cos(lat*Math.PI/180));return [lon-dx,lat-dy,lon+dx,lat+dy]}
 
-function updateLabels() {
-  els.radiusLabel.textContent = `${state.radiusKm} km`;
-  els.radiusSelect.value = String(state.radiusKm);
-  els.fuelSelect.value = state.fuel;
-  if (els.apiBaseInput) els.apiBaseInput.value = state.apiBase;
-}
-
-function saveSettings() {
-  state.radiusKm = Number(els.radiusSelect.value);
-  state.fuel = els.fuelSelect.value;
-  state.apiBase = (els.apiBaseInput?.value || '').trim().replace(/\/$/, '');
-  localStorage.setItem('radiusKm', String(state.radiusKm));
-  localStorage.setItem('manniApiBase', state.apiBase);
-  updateLabels();
-}
-
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2-lat1) * Math.PI/180;
-  const dLon = (lon2-lon1) * Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-function googleNavUrl(station) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(station.lat + ',' + station.lon)}&travelmode=driving`;
-}
-
-function drawSearchArea(lat, lon, mode='gps', fit=true) {
-  state.lat = lat;
-  state.lon = lon;
-  state.searchMode = mode;
-  if (state.circle) state.map.removeLayer(state.circle);
-  if (state.searchCenterMarker) { state.map.removeLayer(state.searchCenterMarker); state.searchCenterMarker = null; }
-
-  const isGps = mode === 'gps';
-  state.circle = L.circle([lat, lon], {
-    radius: state.radiusKm * 1000,
-    color: isGps ? '#2563eb' : '#f59e0b',
-    weight: 1,
-    fillColor: isGps ? '#2563eb' : '#f59e0b',
-    fillOpacity: 0.05
-  }).addTo(state.map);
-
-  if (!isGps) {
-    const searchIcon = L.divIcon({ className:'', html:'<div class="search-center-marker"></div>', iconSize:[18,18], iconAnchor:[9,9] });
-    state.searchCenterMarker = L.marker([lat, lon], { icon: searchIcon }).addTo(state.map).bindPopup('Središče iskanega območja');
+function setSearchCenter(lat,lon,mode='gps',fit=false){
+  state.center={lat,lon};state.searchMode=mode;
+  if(state.circle)state.map.removeLayer(state.circle);
+  state.circle=L.circle([lat,lon],{radius:state.radiusKm*1000,color:mode==='gps'?'#42d889':'#ffab3d',weight:1,fillOpacity:.04}).addTo(state.map);
+  if(state.searchMarker){state.map.removeLayer(state.searchMarker);state.searchMarker=null}
+  if(mode!=='gps'){
+    const ic=L.divIcon({className:'',html:'<div class="search-dot"></div>',iconSize:[17,17],iconAnchor:[8,8]});
+    state.searchMarker=L.marker([lat,lon],{icon:ic}).addTo(state.map);
   }
-
-  if (fit) state.map.fitBounds(state.circle.getBounds(), { padding:[20,20] });
-  if (els.searchModeLabel) els.searchModeLabel.textContent = isGps ? 'okoli mene' : 'okoli zemljevida';
+  if(fit)state.map.fitBounds(state.circle.getBounds(),{padding:[26,26]});
+}
+function setGps(lat,lon,acc){
+  state.gps={lat,lon,acc};
+  if(state.userMarker)state.map.removeLayer(state.userMarker);
+  const ic=L.divIcon({className:'',html:'<div class="user-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+  state.userMarker=L.marker([lat,lon],{icon:ic}).addTo(state.map).bindPopup('Tvoja lokacija');
+  setSearchCenter(lat,lon,'gps',true);
+}
+function locate(load=true){
+  els.status.textContent='Pridobivam tvojo lokacijo …';
+  navigator.geolocation?.getCurrentPosition(async p=>{
+    setGps(p.coords.latitude,p.coords.longitude,p.coords.accuracy);
+    els.searchArea.classList.add('hidden');
+    if(load)await loadStations();
+  },()=>{els.status.textContent='Lokacije ni bilo mogoče pridobiti. Dovoli GPS v brskalniku.'},{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
 }
 
-function setPosition(lat, lon, accuracy) {
-  state.gpsLat = lat;
-  state.gpsLon = lon;
-  if (state.userMarker) state.map.removeLayer(state.userMarker);
-  const icon = L.divIcon({ className:'', html:'<div class="user-marker"></div>', iconSize:[18,18], iconAnchor:[9,9] });
-  state.userMarker = L.marker([lat, lon], { icon }).addTo(state.map).bindPopup('Tvoja lokacija');
-  drawSearchArea(lat, lon, 'gps', true);
-  els.status.textContent = accuracy ? `Lokacija določena (±${Math.round(accuracy)} m)` : 'Lokacija določena';
+async function fetchJson(url,timeout=4200){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),timeout);
+  try{const r=await fetch(url,{cache:'no-store',headers:{Accept:'application/json'},signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(t)}
 }
-
-function locateUser(loadAfter = true) {
-  if (!navigator.geolocation) {
-    els.status.textContent = 'Ta brskalnik ne podpira GPS lokacije.';
-    return;
+async function fetchStationsFast(){
+  const {lat,lon}=state.center;
+  if(state.apiBase){
+    const u=new URL(state.apiBase+'/stations');u.searchParams.set('lat',lat);u.searchParams.set('lon',lon);u.searchParams.set('radius',state.radiusKm);u.searchParams.set('fuel',state.fuel);
+    const j=await fetchJson(u.toString(),4500);state.dataRoute=j.meta?.route||'Manni API';return j.features||j.data?.features||[];
   }
-  els.status.textContent = 'Pridobivam tvojo lokacijo …';
-  navigator.geolocation.getCurrentPosition(async pos => {
-    setPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-    if (loadAfter) await loadStations();
-  }, err => {
-    els.status.textContent = 'Lokacije ni bilo mogoče pridobiti. Dovoli dostop do lokacije.';
-    console.error(err);
-  }, { enableHighAccuracy:true, timeout:15000, maximumAge:30000 });
+  // Kratek fallback: brez 50-sekundnega čakanja.
+  const bb=bbox(lat,lon,state.radiusKm).map(n=>n.toFixed(6)).join(',');
+  const j=await fetchJson(`https://pumperly.com/api/stations?bbox=${bb}&fuel=${encodeURIComponent(state.fuel)}`,4500);
+  state.dataRoute='Pumperly direct';return j.features||[];
+}
+async function fetchOsmQuick(){
+  const {lat,lon}=state.center,r=Math.round(state.radiusKm*1000);
+  const q=`[out:json][timeout:5];nwr["amenity"="fuel"](around:${r},${lat},${lon});out center tags;`;
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),5000);
+  try{
+    const rr=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({data:q}),signal:c.signal});
+    if(!rr.ok)throw new Error('OSM '+rr.status);const j=await rr.json();
+    return (j.elements||[]).map(e=>{const la=e.lat??e.center?.lat,lo=e.lon??e.center?.lon,t=e.tags||{};if(la==null||lo==null)return null;return{id:'osm-'+e.id,name:t.name||t.brand||t.operator||'Bencinska črpalka',brand:t.brand||'',address:[t['addr:street'],t['addr:housenumber'],t['addr:city']].filter(Boolean).join(' '),lat:la,lon:lo,country:'',price:null,currency:'EUR',updated:null}}).filter(Boolean);
+  }finally{clearTimeout(t)}
+}
+function normalize(features){
+  const out=[];for(const f of features){const c=f.geometry?.coordinates,p=f.properties||{};if(!Array.isArray(c))continue;const lon=Number(c[0]),lat=Number(c[1]);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const d=hkm(state.center.lat,state.center.lon,lat,lon);if(d>state.radiusKm+.2)continue;let price=p.price==null?null:Number(p.price);if(!Number.isFinite(price)||price<=0)price=null;out.push({id:String(p.id||p.externalId||`${lat}-${lon}`),name:p.name||p.brand||'Bencinska črpalka',brand:p.brand||'',address:[p.address,p.city].filter(Boolean).join(', '),lat,lon,country:p.country||'',price,currency:p.currency||'EUR',updated:p.reportedAt||null,distance:d,source:'Pumperly'})}return out}
+function normalizeOsm(rows){return rows.map(s=>({...s,distance:hkm(state.center.lat,state.center.lon,s.lat,s.lon),source:'OpenStreetMap'})).filter(s=>s.distance<=state.radiusKm+.2)}
+function dedupe(rows){const a=[...rows].sort((x,y)=>(x.price==null)-(y.price==null)),o=[];for(const s of a){if(!o.some(x=>hkm(s.lat,s.lon,x.lat,x.lon)<.07))o.push(s)}return o}
+
+async function loadStations(){
+  if(!state.center)return;
+  const seq=++state.requestSeq;
+  els.status.textContent='Nalagam cene …';els.updated.textContent='Updating…';els.stationList.innerHTML='<div class="loading">Iščem najbližje cene dizla …</div>';
+  const start=performance.now();let priced=[],err=null;
+  try{priced=normalize(await fetchStationsFast())}catch(e){err=e;console.warn(e)}
+  if(seq!==state.requestSeq)return;
+  let rows=priced;
+  // OSM samo kot rezerva, zato ne blokira hitrega cenovnega odgovora.
+  if(!rows.length){try{rows=normalizeOsm(await fetchOsmQuick())}catch(e){console.warn(e)}}
+  state.stations=dedupe(rows);state.lastUpdated=new Date();render();
+  const ms=Math.round(performance.now()-start),pc=state.stations.filter(s=>s.price!=null).length;
+  els.updated.textContent='Updated just now';
+  els.status.textContent=`${state.stations.length} črpalk · ${pc} s ceno · ${ms} ms${err?' · rezervni način':''}`;
+  els.searchArea.classList.add('hidden');
 }
 
-function bboxForRadius(lat, lon, radiusKm) {
-  const latPad = radiusKm / 111.32;
-  const lonPad = radiusKm / Math.max(15, 111.32 * Math.cos(lat * Math.PI/180));
-  return [lon-lonPad, lat-latPad, lon+lonPad, lat+latPad];
-}
-
-async function fetchJsonResilient(url, timeout=22000) {
-  let lastError = null;
-  for (const w of WRAPPERS) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(()=>ctrl.abort(), timeout);
-    try {
-      const r = await fetch(w.wrap(url), { cache:'no-store', headers:{Accept:'application/json'}, signal:ctrl.signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      return { data, route:w.name };
-    } catch(e) {
-      lastError = e;
-      console.warn('Vir neuspešen', w.name, e);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw lastError || new Error('Centralni vir ni dosegljiv');
-}
-
-async function fetchCentral(path, timeout=12000) {
-  if (state.apiBase) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(()=>ctrl.abort(), timeout);
-    try {
-      const r = await fetch(state.apiBase + path, { cache:'no-store', headers:{Accept:'application/json'}, signal:ctrl.signal });
-      if (!r.ok) throw new Error(`Worker HTTP ${r.status}`);
-      return { data: await r.json(), route:'Manni API · Cloudflare Worker' };
-    } catch(e) {
-      console.warn('Manni API neuspešen, uporabljam rezervo', e);
-    } finally { clearTimeout(timer); }
-  }
-  return fetchJsonResilient('https://pumperly.com' + path, timeout + 10000);
-}
-
-async function loadExchangeRates() {
-  try {
-    const r = await fetchCentral('/api/exchange-rates', 8000);
-    if (r.data && r.data.rates) {
-      state.rates = r.data.rates;
-      state.ratesDate = r.data.date || null;
-    }
-  } catch(e) {
-    console.warn('Tečajev ni bilo mogoče naložiti', e);
-    state.rates = { EUR: 1 };
-  }
-}
-
-function eurValue(price, currency) {
-  if (price == null) return null;
-  if (!currency || currency === 'EUR') return price;
-  const rate = Number(state.rates[currency]);
-  if (!Number.isFinite(rate) || rate <= 0) return null;
-  // ECB: 1 EUR = rate units of currency.
-  return price / rate;
-}
-
-function formatPrice(price, currency='EUR') {
-  if (price == null) return 'Cena ni na voljo';
-  const c = currency || 'EUR';
-  const decimals = c === 'HUF' || c === 'RSD' ? 1 : 3;
-  return `${Number(price).toFixed(decimals)} ${c}/l`;
-}
-
-function timeAgo(iso) {
-  if (!iso) return '';
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return '';
-  const min = Math.max(0, Math.round((Date.now()-t)/60000));
-  if (min < 60) return `pred ${min} min`;
-  const h = Math.round(min/60);
-  if (h < 48) return `pred ${h} h`;
-  const d = Math.round(h/24);
-  return `pred ${d} d`;
-}
-
-async function fetchPumperlyStations() {
-  const bbox = bboxForRadius(state.lat, state.lon, state.radiusKm);
-  const path = `/api/stations?bbox=${bbox.map(n=>n.toFixed(6)).join(',')}&fuel=${encodeURIComponent(state.fuel)}`;
-  const r = await fetchCentral(path, 12000);
-  state.dataRoute = r.route;
-  const features = r.data?.features || [];
-  const out = [];
-  for (const f of features) {
-    const coords = f.geometry?.coordinates;
-    const p = f.properties || {};
-    if (!Array.isArray(coords) || coords.length < 2) continue;
-    const lon = Number(coords[0]), lat = Number(coords[1]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-    const distanceKm = haversine(state.lat, state.lon, lat, lon);
-    if (distanceKm > state.radiusKm + 0.15) continue;
-    let price = p.price == null ? null : Number(p.price);
-    if (!Number.isFinite(price) || price <= 0) price = null;
-    const currency = p.currency || 'EUR';
-    out.push({
-      id: String(p.id || p.externalId || `${lat}-${lon}`),
-      name: p.name || p.brand || 'Bencinska črpalka',
-      brand: p.brand || '',
-      address: [p.address, p.city].filter(Boolean).join(', '),
-      city: p.city || '',
-      lat, lon, distanceKm,
-      diesel: price,
-      currency,
-      eurPrice: eurValue(price, currency),
-      country: p.country || '',
-      updated: p.reportedAt || null,
-      source: 'Pumperly'
-    });
-  }
-  return out;
-}
-
-async function fetchOsmStations() {
-  const radiusM=Math.round(state.radiusKm*1000);
-  const query=`[out:json][timeout:20];nwr["amenity"="fuel"](around:${radiusM},${state.lat},${state.lon});out center tags;`;
-  const endpoints=['https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter','https://lz4.overpass-api.de/api/interpreter'];
-  for(const endpoint of endpoints) {
-    try {
-      const ctrl=new AbortController(); const timer=setTimeout(()=>ctrl.abort(),18000);
-      const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({data:query}),signal:ctrl.signal}); clearTimeout(timer);
-      if(!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data=await response.json();
-      return (data.elements||[]).map(el=>{
-        const lat=el.lat??el.center?.lat, lon=el.lon??el.center?.lon; if(lat==null||lon==null) return null;
-        const t=el.tags||{};
-        return { id:`osm-${el.type}-${el.id}`, name:t.name||t.brand||t.operator||'Bencinska črpalka', brand:t.brand||'', address:[t['addr:street'],t['addr:housenumber'],t['addr:city']].filter(Boolean).join(' '), lat, lon, diesel:null, currency:'EUR', eurPrice:null, country:'', source:'OpenStreetMap', updated:null, distanceKm:haversine(state.lat,state.lon,lat,lon) };
-      }).filter(s=>s && s.distanceKm <= state.radiusKm + 0.15);
-    } catch(e){ console.warn('Overpass neuspešen',endpoint,e); }
-  }
-  return [];
-}
-
-function dedupe(stations) {
-  const sorted=[...stations].sort((a,b)=>(a.diesel==null)-(b.diesel==null));
-  const out=[];
-  for(const s of sorted) {
-    const duplicate=out.find(x=>haversine(s.lat,s.lon,x.lat,x.lon)<0.08);
-    if(!duplicate) out.push(s);
-    else if(duplicate.diesel==null && s.diesel!=null) Object.assign(duplicate,s);
-  }
-  return out;
-}
-
-async function loadStations() {
-  if(state.lat==null) return;
-  els.refresh.disabled=true;
-  els.stationList.innerHTML='<div class="loading">Nalagam evropske cene dizla …</div>';
-  els.status.textContent='Povezujem se s centralnim evropskim virom …';
-  const results=[];
-  let centralError=null;
-
-  await loadExchangeRates();
-  try {
-    results.push(...await fetchPumperlyStations());
-  } catch(e) {
-    centralError=e;
-    console.warn('Pumperly neuspešen',e);
-  }
-
-  // OSM dopolni lokacije in služi kot rezerva, če centralni vir odpove.
-  try { results.push(...await fetchOsmStations()); } catch(e) { console.warn(e); }
-
-  state.stations=dedupe(results).filter(s=>s.distanceKm<=state.radiusKm+0.15);
-  renderStations();
-  const priced=state.stations.filter(s=>s.diesel!=null).length;
-  const countries=[...new Set(state.stations.map(s=>s.country).filter(Boolean))];
-  const countryText=countries.map(c=>`${EUROPE[c]?.[0]||''} ${c}`).join(' · ');
-  const modeText = state.searchMode === 'gps' ? 'okoli tvoje lokacije' : 'okoli izbranega dela zemljevida';
-  els.status.textContent = `${state.stations.length} črpalk · ${priced} s ceno · ${modeText}${countryText ? ' · '+countryText : ''}`;
-  if (centralError) {
-    els.listInfo.textContent='Centralni cenovni vir trenutno ni dosegljiv; prikazane so rezervne lokacije OpenStreetMap.';
-  } else {
-    els.listInfo.textContent=`Vir cen: ${state.dataRoute || 'Pumperly'}${state.ratesDate ? ` · tečaji ECB ${state.ratesDate}` : ''}`;
-  }
-  els.refresh.disabled=false;
-}
-
-function pricePinIcon(station) {
-  const txt=station.diesel!=null ? `${Number(station.diesel).toFixed(station.currency==='HUF'||station.currency==='RSD'?1:3)} ${station.currency||'EUR'}` : '⛽';
-  return L.divIcon({className:'',html:`<div class="price-pin">${escapeHtml(txt)}</div>`,iconSize:[82,26],iconAnchor:[41,13]});
-}
-
-function renderStations() {
-  for(const m of state.markers) state.map.removeLayer(m);
-  state.markers=[];
-  const sort=els.sort.value;
-  const arr=[...state.stations].sort((a,b)=>{
-    if(sort==='distance') return a.distanceKm-b.distanceKm;
-    if(a.diesel==null && b.diesel!=null) return 1;
-    if(a.diesel!=null && b.diesel==null) return -1;
-    const ap=a.eurPrice, bp=b.eurPrice;
-    if(ap!=null && bp!=null && ap!==bp) return ap-bp;
-    if(a.currency===b.currency && a.diesel!=null && b.diesel!=null && a.diesel!==b.diesel) return a.diesel-b.diesel;
-    return a.distanceKm-b.distanceKm;
-  });
-  els.stationCount.textContent=String(arr.length);
-  if(!arr.length){ els.stationList.innerHTML='<div class="empty-state">V izbranem območju ni bilo mogoče najti črpalk.</div>'; return; }
+function markerIcon(s){const txt=s.price!=null?nativePrice(s):'⛽';return L.divIcon({className:'',html:`<div class="price-marker">${escapeHtml(txt)}</div>`,iconSize:[76,28],iconAnchor:[38,14]})}
+function render(){
+  state.markers.forEach(m=>state.map.removeLayer(m));state.markers=[];
+  const arr=[...state.stations].sort((a,b)=>els.sort.value==='distance'?a.distance-b.distance:(a.price==null)-(b.price==null)||(a.price??9999)-(b.price??9999)||a.distance-b.distance);
+  const bp=arr.find(s=>s.price!=null);els.bestPrice.textContent=bp?nativePrice(bp):'—';
+  if(!arr.length){els.stationList.innerHTML='<div class="empty">Na tem območju ni bilo rezultatov. Premakni zemljevid ali povečaj radij.</div>';return}
   els.stationList.innerHTML='';
   for(const s of arr){
-    const flag=EUROPE[s.country]?.[0] || '';
-    const nativePrice=formatPrice(s.diesel,s.currency);
-    const approx = s.diesel!=null && s.currency!=='EUR' && s.eurPrice!=null ? ` ≈ ${s.eurPrice.toFixed(3)} EUR/l` : '';
-    const age=timeAgo(s.updated);
-    const m=L.marker([s.lat,s.lon],{icon:pricePinIcon(s)}).addTo(state.map).bindPopup(`<strong>${flag} ${escapeHtml(s.name)}</strong><br>${s.distanceKm.toFixed(1)} km<br>${s.diesel!=null?`${escapeHtml(nativePrice)}${escapeHtml(approx)}`:'Cena ni na voljo'}${age?`<br><small>${escapeHtml(age)}</small>`:''}`);
-    state.markers.push(m);
-    const card=document.createElement('article'); card.className='station-card';
-    card.innerHTML=`<div><h3 class="station-name">${flag} ${escapeHtml(s.name)}</h3><div class="station-meta"><span>${s.distanceKm.toFixed(1)} km</span>${s.brand?`<span>${escapeHtml(s.brand)}</span>`:''}${s.address?`<span>${escapeHtml(s.address)}</span>`:''}</div><a class="nav-btn" href="${googleNavUrl(s)}" target="_blank" rel="noopener">Navigiraj</a><div class="source-note">Vir: ${escapeHtml(s.source)}${age?` · posodobljeno ${escapeHtml(age)}`:''}</div></div><div class="price ${s.diesel==null?'missing':''}">${s.diesel!=null?`${escapeHtml(nativePrice)}${approx?`<div class="source-note">${escapeHtml(approx.trim())}</div>`:''}`:'Cena ni na voljo'}</div>`;
-    els.stationList.appendChild(card);
+    const m=L.marker([s.lat,s.lon],{icon:markerIcon(s)}).addTo(state.map).bindPopup(`<b>${escapeHtml(s.name)}</b><br>${s.distance.toFixed(1)} km<br>${escapeHtml(nativePrice(s)||'Cena ni na voljo')}`);state.markers.push(m);
+    const age=timeAgo(s.updated),flag=EURO[s.country]||'';
+    const art=document.createElement('article');art.className='station-card';
+    art.innerHTML=`<div class="station-top"><div class="brand-icon">${escapeHtml(brandLetters(s.name,s.brand))}</div><div class="station-main"><div class="station-name">${flag} ${escapeHtml(s.name)}</div><div class="station-address">${escapeHtml(s.address||s.brand||'')}</div></div></div><div class="station-price-row"><div class="price-block"><div class="price-line">Price ${s.price!=null?`<strong>${escapeHtml(nativePrice(s))}</strong>`:'<strong style="color:rgba(255,255,255,.5)">—</strong>'}</div><div class="price-sub">${age?`Updated ${escapeHtml(age)} ago`:`Vir: ${escapeHtml(s.source)}`}</div></div><div class="right-actions"><div class="distance">${age?`<span class="fresh">✓ ${escapeHtml(age)}</span>`:''}→ ${s.distance.toFixed(1)} km</div><a class="nav-btn" href="${googleNav(s)}" target="_blank" rel="noopener">Navigate</a></div></div>`;
+    els.stationList.appendChild(art);
   }
 }
 
-async function searchAtMapCenter() {
-  if (!state.map) return;
-  const c = state.map.getCenter();
-  drawSearchArea(c.lat, c.lng, 'map', false);
-  els.searchMapBtn?.classList.add('searching');
-  if (els.searchMapBtn) els.searchMapBtn.textContent = 'Iščem …';
-  try {
-    await loadStations();
-  } finally {
-    els.searchMapBtn?.classList.remove('searching');
-    if (els.searchMapBtn) els.searchMapBtn.textContent = '⛽ Poišči na tem območju';
-  }
-}
+function searchMap(){const c=state.map.getCenter();setSearchCenter(c.lat,c.lng,'map',false);loadStations()}
+function cycleSheet(){state.sheetState=(state.sheetState+1)%3;state.sheet.classList.remove('sheet-low','sheet-half','sheet-high');state.sheet.classList.add(['sheet-low','sheet-half','sheet-high'][state.sheetState])}
+let dragStartY=null,dragStartH=0;
+function dragStart(e){dragStartY=e.touches?e.touches[0].clientY:e.clientY;dragStartH=state.sheet.getBoundingClientRect().height;state.sheet.style.transition='none'}
+function dragMove(e){if(dragStartY==null)return;const y=e.touches?e.touches[0].clientY:e.clientY,dy=dragStartY-y;const h=Math.max(innerHeight*.28,Math.min(innerHeight*.88,dragStartH+dy));state.sheet.style.height=h+'px'}
+function dragEnd(){if(dragStartY==null)return;const h=state.sheet.getBoundingClientRect().height/innerHeight;state.sheet.style.height='';state.sheet.style.transition='height .24s ease';state.sheetState=h<.43?0:h<.72?1:2;state.sheet.classList.remove('sheet-low','sheet-half','sheet-high');state.sheet.classList.add(['sheet-low','sheet-half','sheet-high'][state.sheetState]);dragStartY=null}
 
-function escapeHtml(v){ return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+$('settingsBtn').addEventListener('click',()=>{els.radius.value=state.radiusKm;els.fuel.value=state.fuel;els.api.value=state.apiBase;els.settings.showModal()});
+$('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){setSearchCenter(state.center.lat,state.center.lon,state.searchMode,true);loadStations()}});
+els.refresh.addEventListener('click',loadStations);els.locate.addEventListener('click',()=>locate(true));els.searchArea.addEventListener('click',searchMap);els.sort.addEventListener('change',render);$('fuelBtn').addEventListener('click',()=>els.settings.showModal());
+els.handle.addEventListener('click',cycleSheet);els.handle.addEventListener('mousedown',dragStart);document.addEventListener('mousemove',dragMove);document.addEventListener('mouseup',dragEnd);els.handle.addEventListener('touchstart',dragStart,{passive:true});document.addEventListener('touchmove',dragMove,{passive:true});document.addEventListener('touchend',dragEnd);
 
-document.getElementById('settingsBtn').addEventListener('click',()=>els.settings.showModal());
-document.getElementById('locateBtn').addEventListener('click',()=>locateUser(true));
-els.searchMapBtn?.addEventListener('click',()=>searchAtMapCenter());
-els.refresh.addEventListener('click',()=>loadStations());
-els.sort.addEventListener('change',()=>renderStations());
-document.getElementById('saveSettingsBtn').addEventListener('click',e=>{
-  e.preventDefault(); saveSettings(); els.settings.close();
-  if(state.lat!=null){
-    drawSearchArea(state.lat,state.lon,state.searchMode,true);
-    loadStations();
-  }
-});
-
-initMap(); updateLabels(); locateUser(true);
-if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+initMap();locate(true);
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});

@@ -1,9 +1,14 @@
 {
-  "name": "Manni Fuel",
-  "short_name": "Manni Fuel",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#111827",
-  "description": "Cene dizla in bencinske črpalke v bližini po Evropi"
+  "name":"Manni Fuel 2.0",
+  "short_name":"Manni Fuel",
+  "start_url":"./",
+  "display":"standalone",
+  "orientation":"portrait",
+  "background_color":"#0b1d1b",
+  "theme_color":"#0b1d1b",
+  "description":"Hitro iskanje cen dizla in bencinskih črpalk po Evropi",
+  "icons":[
+    {"src":"icon-192.png","sizes":"192x192","type":"image/png"},
+    {"src":"icon-512.png","sizes":"512x512","type":"image/png"}
+  ]
 }

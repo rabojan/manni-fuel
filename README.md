@@ -1,17 +1,41 @@
-# Manni Fuel v8
+# Manni Fuel 2.0
 
-V8 uporablja lasten Cloudflare Worker med GitHub Pages in Pumperly. S tem se javni `corsproxy.io` odstrani iz glavne poti in se odziv lahko predpomni na Cloudflare robnem omrežju.
+Mobilna PWA za hitro iskanje cen dizla po Evropi.
 
-## Datoteke za GitHub Pages
-Naloži/zamenjaj: `index.html`, `app.js`, `styles.css`, `manifest.json`, `sw.js`.
+## Kaj je novo
+- zemljevid čez cel zaslon
+- drsni bottom sheet s črpalkami
+- cenovni markerji neposredno na zemljevidu
+- iskanje okoli GPS lokacije ali okoli poljubnega dela zemljevida
+- Google Maps navigacija
+- optimiziran Cloudflare Worker z geografskim cacheom
+- timeouti so kratki: aplikacija ne čaka več zaporedoma 20–60 sekund na javne CORS proxyje
+
+## GitHub Pages
+Na GitHub naloži:
+- index.html
+- styles.css
+- app.js
+- manifest.json
+- sw.js
+- icon-192.png
+- icon-512.png
+- apple-touch-icon.png
 
 ## Cloudflare Worker
-Datoteka `cloudflare-worker.js` je pripravljena za Cloudflare Workers. Worker dovoljuje klice iz `https://rabojan.github.io` in posreduje samo dve Pumperly poti: `/api/stations` in `/api/exchange-rates`.
+Datoteki:
+- cloudflare-worker.js
+- wrangler.toml
 
-Po objavi Workerja dobiš naslov, npr. `https://manni-fuel-api.<tvoj-subdomain>.workers.dev`. Ta naslov v Manni Fuel vneseš pod ⚙️ Nastavitve → Manni API (Cloudflare Worker).
+Worker objavi kot `manni-fuel-api`. Nato njegov URL vpiši v Manni Fuel: **••• → Manni API — Cloudflare Worker**.
 
-Če Worker ni nastavljen ali začasno odpove, aplikacija še vedno uporabi rezervno pot: neposredni Pumperly → AllOrigins → corsproxy.io.
+Primer URL-ja:
+`https://manni-fuel-api.<tvoj-subdomain>.workers.dev`
 
+## Kako deluje cache
+Worker center iskanja zaokroži na približno 0,05° (~5 km) in uporablja radijske razrede 10/20/30/50 km. Zato premiki po istem območju pogosto zadenejo isti Cloudflare cache in so precej hitrejši.
 
-## v9 – iskanje po zemljevidu
-Poleg iskanja okoli trenutne GPS lokacije lahko zemljevid premakneš kamorkoli po Evropi in pritisneš **Poišči na tem območju**. Aplikacija uporabi središče trenutno prikazanega zemljevida ter isti radij, ki je nastavljen v Nastavitvah. Gumb ◎ vrne iskanje na tvojo GPS lokacijo.
+Pumperly uporablja bbox endpoint za črpalke; Manni Worker rezultate predpomni za 5 minut ter omogoča stale odzive do 30 minut.
+
+## ETA
+Gumb *Calculate ETAs* je v 2.0 vizualno pripravljen, vendar namenoma še ni aktiven. Za pravi ETA potrebujemo routing API; ne prikazujemo izmišljenega časa vožnje.

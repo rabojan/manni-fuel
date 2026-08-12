@@ -3,100 +3,105 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#111827" />
+  <meta name="theme-color" content="#0b1d1b" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Manni Fuel — Evropa</title>
+  <title>Manni Fuel 2.0</title>
   <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <h1>Manni Fuel</h1>
-        <p id="statusText">Pridobivam tvojo lokacijo …</p>
-      </div>
-      <button id="settingsBtn" class="icon-btn" aria-label="Nastavitve">⚙️</button>
-    </header>
+  <div id="app">
+    <div id="map" aria-label="Zemljevid bencinskih črpalk"></div>
 
-    <section class="map-wrap">
-      <div id="map"></div>
-      <div class="map-actions">
-        <button id="locateBtn" class="round-btn" aria-label="Moja lokacija" title="Poišči okoli moje lokacije">◎</button>
+    <div class="top-controls">
+      <button id="locateBtn" class="floating-btn icon-only" aria-label="Moja lokacija">➤</button>
+      <div class="control-pill">
+        <button id="refreshBtn" class="pill-action" aria-label="Osveži">↻</button>
+        <div class="pill-value" id="bestPrice">—</div>
+        <div class="pill-divider"></div>
+        <button id="fuelBtn" class="pill-select">Diesel <span>⌄</span></button>
+        <div class="pill-divider"></div>
+        <button id="settingsBtn" class="pill-more" aria-label="Nastavitve">•••</button>
       </div>
-      <button id="searchMapBtn" class="map-search-btn" type="button">⛽ Poišči na tem območju</button>
+    </div>
+
+    <button id="searchAreaBtn" class="search-area-btn hidden">⛽ Poišči na tem območju</button>
+
+    <section id="sheet" class="bottom-sheet sheet-half" aria-label="Bencinske črpalke">
+      <div id="sheetHandle" class="sheet-handle-wrap" aria-label="Povleci seznam">
+        <div class="sheet-handle"></div>
+      </div>
+
+      <div class="sheet-tools">
+        <button id="etaBtn" class="eta-btn" type="button" disabled title="ETA bomo dodali v naslednji fazi">
+          ◴ <span>Calculate ETAs</span><small>kmalu</small>
+        </button>
+      </div>
+
+      <div class="sheet-head">
+        <div>
+          <h1>Fuel stations</h1>
+          <p id="updatedText">Nalagam podatke …</p>
+        </div>
+        <div class="sort-wrap">
+          <label for="sortSelect">Sort</label>
+          <select id="sortSelect">
+            <option value="price">By price</option>
+            <option value="distance">By distance</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="statusBar" class="status-bar">Pridobivam tvojo lokacijo …</div>
+      <div id="stationList" class="station-list" aria-live="polite"></div>
     </section>
 
-    <section class="summary-bar">
-      <div>
-        <span class="summary-label">Doseg</span>
-        <strong id="radiusLabel">20 km</strong>
-        <small id="searchModeLabel" class="summary-sub">okoli mene</small>
-      </div>
-      <div>
-        <span class="summary-label">Črpalke</span>
-        <strong id="stationCount">0</strong>
-      </div>
-      <button id="refreshBtn" class="primary-btn">Osveži</button>
-    </section>
+    <dialog id="settingsDialog">
+      <form method="dialog" class="settings-card">
+        <div class="settings-head">
+          <div>
+            <span class="eyebrow">Manni Fuel 2.0</span>
+            <h2>Nastavitve</h2>
+          </div>
+          <button value="cancel" class="close-btn" aria-label="Zapri">✕</button>
+        </div>
 
-    <section class="list-head">
-      <div>
-        <h2>Bencinske črpalke</h2>
-        <p id="listInfo">Evropa · centralni podatkovni vir</p>
-      </div>
-      <select id="sortSelect" aria-label="Razvrsti">
-        <option value="price">Najcenejše</option>
-        <option value="distance">Najbližje</option>
-      </select>
-    </section>
+        <label class="field">
+          <span>Iskalni radij</span>
+          <select id="radiusSelect">
+            <option value="5">5 km</option>
+            <option value="10">10 km</option>
+            <option value="20" selected>20 km</option>
+            <option value="30">30 km</option>
+            <option value="50">50 km</option>
+          </select>
+        </label>
 
-    <main id="stationList" class="station-list" aria-live="polite">
-      <div class="empty-state">Ko dobim tvojo lokacijo, bom prikazal črpalke v izbranem območju.</div>
-    </main>
+        <label class="field">
+          <span>Gorivo</span>
+          <select id="fuelSelect">
+            <option value="B7" selected>Diesel B7</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Manni API — Cloudflare Worker</span>
+          <input id="apiBaseInput" type="url" placeholder="https://manni-fuel-api....workers.dev" autocomplete="off" />
+          <small>Za hitro delovanje je priporočljiv tvoj Worker. Brez njega aplikacija uporabi neposredni Pumperly z zelo kratkim timeoutom.</small>
+        </label>
+
+        <div class="info-box">
+          <strong>Hitri način</strong>
+          <span>Worker uporablja Cloudflare cache in iste geografske celice ponovno servira takoj.</span>
+        </div>
+
+        <button id="saveSettingsBtn" value="default" class="save-btn">Shrani</button>
+      </form>
+    </dialog>
   </div>
-
-  <dialog id="settingsDialog">
-    <form method="dialog" class="settings-card">
-      <div class="settings-head">
-        <h2>Nastavitve</h2>
-        <button value="cancel" class="icon-btn" aria-label="Zapri">✕</button>
-      </div>
-
-      <label class="field">
-        <span>Oddaljenost od mene</span>
-        <select id="radiusSelect">
-          <option value="5">5 km</option>
-          <option value="10">10 km</option>
-          <option value="20" selected>20 km</option>
-          <option value="30">30 km</option>
-          <option value="50">50 km</option>
-        </select>
-      </label>
-
-      <label class="field">
-        <span>Gorivo</span>
-        <select id="fuelSelect">
-          <option value="B7" selected>Diesel B7</option>
-        </select>
-      </label>
-
-      <label class="field">
-        <span>Manni API (Cloudflare Worker)</span>
-        <input id="apiBaseInput" type="url" placeholder="https://manni-fuel-api...workers.dev" autocomplete="off" />
-        <small>Ko postaviš svoj Worker, sem prilepi njegov https naslov. Brez njega aplikacija uporabi počasnejši rezervni dostop do Pumperly.</small>
-      </label>
-
-      <div class="field">
-        <span>Podatkovni sistem</span>
-        <small>Prednostno: tvoj Cloudflare Worker → Pumperly. Rezerva: neposredni Pumperly in javni CORS posredniki.</small>
-      </div>
-
-      <button id="saveSettingsBtn" value="default" class="primary-btn wide">Shrani nastavitve</button>
-    </form>
-  </dialog>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="app.js"></script>
