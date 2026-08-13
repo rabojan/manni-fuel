@@ -1,4 +1,4 @@
-// Manni Fuel 3.8 — map popup beta. Europe/Pumperly core kept intact.
+// Manni Fuel 3.9 — station actions + opening hours beta. Europe/Pumperly core kept intact.
 window.addEventListener('DOMContentLoaded',()=>{
   const w=document.getElementById('welcomeScreen');
   if(!w)return;
@@ -12,7 +12,7 @@ const state={
   radiusKm:Number(localStorage.getItem('radiusKm')||20),
   fuel:localStorage.getItem('fuel')||'B7',
   apiBase:(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,''),
-  stations:[],markerLayer:null,userMarker:null,
+  stations:[],markerLayer:null,userMarker:null,stationMarkers:new Map(),hoursCache:new Map(),
   autoTimer:null,programmaticUntil:0,requestSeq:0,controller:null
 };
 const $=id=>document.getElementById(id);
@@ -27,6 +27,74 @@ function km(a,b,c,d){const R=6371,p=Math.PI/180,da=(c-a)*p,dl=(d-b)*p,x=Math.sin
 function ago(iso){if(!iso)return'';const t=new Date(iso).getTime();if(!Number.isFinite(t))return'';const m=Math.max(0,Math.round((Date.now()-t)/60000));if(m<2)return'pravkar';if(m<60)return`${m} min`;const h=Math.round(m/60);if(h<48)return`${h} h`;return`${Math.round(h/24)} d`}
 function price(s){if(s.price==null)return null;const d=['HUF','RSD'].includes(s.currency)?1:3;return `${Number(s.price).toFixed(d)} ${s.currency||'EUR'}`}
 function nav(s){return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.lat+','+s.lon)}&travelmode=driving`}
+
+function normText(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function nameScore(a,b){
+  const A=new Set(normText(a).split(/\s+/).filter(x=>x.length>1)),B=new Set(normText(b).split(/\s+/).filter(x=>x.length>1));
+  if(!A.size||!B.size)return 0;
+  let hit=0;A.forEach(x=>{if(B.has(x))hit++});return hit/Math.max(A.size,B.size)
+}
+function fmtTime(d){return d.toLocaleTimeString('sl-SI',{hour:'2-digit',minute:'2-digit'})}
+const DAY={Su:0,Mo:1,Tu:2,We:3,Th:4,Fr:5,Sa:6};
+function daySet(spec){
+  const out=new Set();
+  for(const part of spec.split(',')){
+    const t=part.trim(); if(!t)continue;
+    const m=t.match(/^(Mo|Tu|We|Th|Fr|Sa|Su)(?:-(Mo|Tu|We|Th|Fr|Sa|Su))?$/); if(!m)continue;
+    const a=DAY[m[1]],b=m[2]?DAY[m[2]]:a; let d=a; out.add(d); while(d!==b){d=(d+1)%7;out.add(d)}
+  }
+  return out;
+}
+function minutes(hm){const m=hm.match(/^(\d{1,2}):(\d{2})$/);return m?Number(m[1])*60+Number(m[2]):null}
+function evaluateOpeningHours(raw,now=new Date()){
+  if(!raw)return {known:false,label:'Odpiralni čas ni znan'};
+  const v=raw.trim();
+  if(/^24\/7$/i.test(v))return {known:true,open:true,label:'Odprto 24/7'};
+  // Conservative parser for common OSM weekly forms. Complex/holiday rules are shown as unknown, never guessed.
+  if(/PH|SH|sunrise|sunset|week|\+|"|unknown|off\s*$/i.test(v) && !/^(?:Mo|Tu|We|Th|Fr|Sa|Su)/.test(v))return {known:false,label:'Odpiralni čas: '+v};
+  const rules=[];
+  for(const rawRule of v.split(';')){
+    const rule=rawRule.trim(); if(!rule)continue;
+    let m=rule.match(/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*))\s+(off|closed)$/i);
+    if(m){rules.push({days:daySet(m[1]),closed:true});continue}
+    m=rule.match(/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*))\s+(.+)$/);
+    let days,times;
+    if(m){days=daySet(m[1]);times=m[2]}else if(/^\d{1,2}:\d{2}-\d{1,2}:\d{2}(?:,\d{1,2}:\d{2}-\d{1,2}:\d{2})*$/.test(rule)){days=new Set([0,1,2,3,4,5,6]);times=rule}else continue;
+    const spans=[];
+    for(const sp of times.split(',')){const x=sp.trim().match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);if(x){const a=minutes(x[1]),b=minutes(x[2]);if(a!=null&&b!=null)spans.push([a,b])}}
+    if(spans.length)rules.push({days,spans});
+  }
+  if(!rules.length)return {known:false,label:'Odpiralni čas: '+v};
+  const day=now.getDay(),cur=now.getHours()*60+now.getMinutes();
+  for(const r of rules){
+    if(!r.days.has(day)||r.closed)continue;
+    for(const [a,b] of r.spans){
+      if(a<=b && cur>=a && cur<b){const close=new Date(now);close.setHours(Math.floor(b/60),b%60,0,0);return {known:true,open:true,label:'Odprto do '+fmtTime(close)} }
+      if(a>b && (cur>=a||cur<b)){const close=new Date(now);if(cur>=a)close.setDate(close.getDate()+1);close.setHours(Math.floor(b/60),b%60,0,0);return {known:true,open:true,label:'Odprto do '+fmtTime(close)} }
+    }
+  }
+  // Find the next opening within 8 days.
+  for(let add=0;add<8;add++){
+    const d=new Date(now);d.setDate(now.getDate()+add);const wd=d.getDay();
+    for(const r of rules){if(!r.days.has(wd)||r.closed||!r.spans)continue;for(const [a] of r.spans){const cand=new Date(d);cand.setHours(Math.floor(a/60),a%60,0,0);if(cand>now){const dayText=add===0?'danes':add===1?'jutri':cand.toLocaleDateString('sl-SI',{weekday:'short'});return {known:true,open:false,label:'Zaprto · odpre '+dayText+' ob '+fmtTime(cand)}}}}
+  }
+  return {known:true,open:false,label:'Zaprto'};
+}
+async function getOpeningInfo(s){
+  const cached=state.hoursCache.get(s.id);if(cached&&Date.now()-cached.at<15*60*1000)return cached.value;
+  const q=`[out:json][timeout:8];(node(around:350,${s.lat},${s.lon})[amenity=fuel];way(around:350,${s.lat},${s.lon})[amenity=fuel];relation(around:350,${s.lat},${s.lon})[amenity=fuel];);out center tags;`;
+  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),7000);
+  try{
+    const r=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q),{signal:ctl.signal,headers:{Accept:'application/json'}});if(!r.ok)throw 0;
+    const j=await r.json();const cand=[];
+    for(const e of j.elements||[]){const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const tags=e.tags||{};const d=km(s.lat,s.lon,lat,lon);const score=Math.max(nameScore(s.name,tags.name),nameScore(s.brand,tags.brand),nameScore(s.name,tags.brand));cand.push({tags,d,score})}
+    cand.sort((a,b)=>(b.score-a.score)||(a.d-b.d));
+    let hit=cand.find(x=>x.score>=.34&&x.d<=.35)||cand.find(x=>x.d<=.08);
+    const raw=hit?.tags?.opening_hours||'';
+    const value=raw?{...evaluateOpeningHours(raw),raw,matched:true}:{known:false,label:'Odpiralni čas ni znan',matched:!!hit};
+    state.hoursCache.set(s.id,{at:Date.now(),value});return value;
+  }catch{return {known:false,label:'Odpiralni čas ni znan'}}finally{clearTimeout(timer)}
+}
 
 function initMap(){
   state.map=L.map('map',{zoomControl:false,attributionControl:true}).setView([46.15,14.99],8);
@@ -104,34 +172,59 @@ async function getRoadDistance(s){
   try{const r=await fetch(u,{signal:ctl.signal});if(!r.ok)return null;const j=await r.json();const m=j?.routes?.[0]?.distance;return Number.isFinite(m)?m/1000:null}catch{return null}finally{clearTimeout(timer)}
 }
 
-function popupHtml(s,roadKm=null,loadingRoad=false){
+function popupHtml(s,roadKm=null,loadingRoad=false,hours=null,loadingHours=false){
   const a=ago(s.updated);
   const dist=roadKm!=null?`<strong>${roadKm.toFixed(1)} km po cesti</strong>`:(loadingRoad?'Računam cestno razdaljo …':`≈ ${s.distance.toFixed(1)} km zračno`);
-  return `<div class="manni-popup"><div class="popup-title">${FLAG[s.country]||''} ${esc(s.name)}</div>${s.address?`<div class="popup-address">${esc(s.address)}</div>`:''}<div class="popup-price">${esc(price(s)||'Cena ni na voljo')}</div><div class="popup-distance">${dist}</div>${a?`<div class="popup-source">Vir: Pumperly · ${esc(a)}</div>`:'<div class="popup-source">Vir: Pumperly</div>'}<a class="popup-nav-btn" href="${nav(s)}" target="_blank" rel="noopener">Navigiraj</a></div>`;
+  let hoursHtml='';
+  if(loadingHours)hoursHtml='<div class="popup-hours unknown"><span>⚪</span> Preverjam odpiralni čas …</div>';
+  else if(hours){const cls=hours.known?(hours.open?'open':'closed'):'unknown',dot=hours.known?(hours.open?'🟢':'🔴'):'⚪';hoursHtml=`<div class="popup-hours ${cls}"><span>${dot}</span> ${esc(hours.label)}</div>`}
+  return `<div class="manni-popup"><div class="popup-title">${FLAG[s.country]||''} ${esc(s.name)}</div>${s.address?`<div class="popup-address">${esc(s.address)}</div>`:''}<div class="popup-price">${esc(price(s)||'Cena ni na voljo')}</div><div class="popup-distance">${dist}</div>${hoursHtml}${a?`<div class="popup-source">Vir cene: Pumperly · ${esc(a)}</div>`:'<div class="popup-source">Vir cene: Pumperly</div>'}${hours?.matched?'<div class="popup-source">Odpiralni čas: OpenStreetMap</div>':''}<a class="popup-nav-btn" href="${nav(s)}" target="_blank" rel="noopener">Navigiraj</a></div>`;
 }
 
 function render(){
-  state.markerLayer.clearLayers();
+  state.markerLayer.clearLayers();state.stationMarkers.clear();
   const arr=[...state.stations];
   const priced=arr.filter(s=>s.price!=null);
   const best=priced.length?priced.reduce((a,b)=>a.price<=b.price?a:b):null;
   els.best.textContent=best?price(best):'—';
   arr.forEach(s=>{
     const m=L.marker([s.lat,s.lon],{icon:markerIcon(s)});
-    m.bindPopup(popupHtml(s,null,!!state.gps),{closeButton:true,autoPan:true,maxWidth:280});
+    m.bindPopup(popupHtml(s,null,!!state.gps,null,true),{closeButton:true,autoPan:true,maxWidth:290});
     m.on('click',async()=>{
-      if(!state.gps)return;
-      const roadKm=await getRoadDistance(s);
-      if(m.isPopupOpen())m.setPopupContent(popupHtml(s,roadKm,false));
+      m.setPopupContent(popupHtml(s,null,!!state.gps,null,true));
+      const [roadKm,hours]=await Promise.all([getRoadDistance(s),getOpeningInfo(s)]);
+      if(m.isPopupOpen())m.setPopupContent(popupHtml(s,roadKm,false,hours,false));
     });
-    state.markerLayer.addLayer(m);
+    state.stationMarkers.set(s.id,m);state.markerLayer.addLayer(m);
   });
+}
+async function focusStation(s){
+  if(!s)return;
+  state.programmaticUntil=Date.now()+1200;
+  state.map.setView([s.lat,s.lon],Math.max(state.map.getZoom(),14),{animate:true});
+  const m=state.stationMarkers.get(s.id);if(!m)return;
+  setTimeout(()=>{m.openPopup();m.fire('click')},350);
+}
+async function applyStationAction(mode){
+  if(!state.stations.length)return;
+  if(mode==='price'){
+    const priced=state.stations.filter(s=>s.price!=null);if(!priced.length)return;
+    const min=Math.min(...priced.map(s=>s.price));const tied=priced.filter(s=>Math.abs(s.price-min)<1e-9).sort((a,b)=>a.distance-b.distance);
+    await focusStation(tied[0]);return;
+  }
+  if(mode==='distance'){
+    const base=[...state.stations].sort((a,b)=>a.distance-b.distance).slice(0,Math.min(5,state.stations.length));
+    if(!state.gps){await focusStation(base[0]);return}
+    const tested=await Promise.all(base.map(async s=>({s,road:await getRoadDistance(s)})));
+    tested.sort((a,b)=>(a.road??Infinity)-(b.road??Infinity));
+    await focusStation(tested[0]?.road!=null?tested[0].s:base[0]);
+  }
 }
 
 $('settingsBtn').addEventListener('click',()=>{els.radius.value=state.radiusKm;els.fuel.value=state.fuel;els.api.value=state.apiBase;els.settings.showModal()});
 $('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){setSearchCenter(state.center.lat,state.center.lon,true);loadStations()}});
 els.refresh.addEventListener('click',()=>{locate(false);loadStations();window.dispatchEvent(new CustomEvent('manni:checkpoint-request'))});
 els.locate.addEventListener('click',()=>locate(true));
-els.sort.addEventListener('change',()=>{});
+els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate(true);
-console.info('Manni Fuel 3.8 map popup beta — bottom list removed, no search marker');
+console.info('Manni Fuel 3.9 — nearest/cheapest actions + OSM opening hours');
