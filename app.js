@@ -12,7 +12,7 @@ const state={
   radiusKm:Number(localStorage.getItem('radiusKm')||20),
   fuel:localStorage.getItem('fuel')||'B7',
   apiBase:(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,''),
-  stations:[],markerLayer:null,userMarker:null,searchMarker:null,circle:null,
+  stations:[],markerLayer:null,userMarker:null,circle:null,
   autoTimer:null,programmaticUntil:0,requestSeq:0,controller:null,sheetOpen:false
 };
 const $=id=>document.getElementById(id);
@@ -45,8 +45,6 @@ function setCenter(lat,lon,mode='gps',fit=false){
   state.center={lat,lon};
   if(state.circle)state.map.removeLayer(state.circle);
   state.circle=L.circle([lat,lon],{radius:state.radiusKm*1000,color:mode==='gps'?'#42d889':'#ffab3d',weight:1,fillOpacity:.04}).addTo(state.map);
-  if(state.searchMarker){state.map.removeLayer(state.searchMarker);state.searchMarker=null}
-  if(mode!=='gps')state.searchMarker=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<div class="search-dot"></div>',iconSize:[17,17],iconAnchor:[8,8]})}).addTo(state.map);
   if(fit){state.programmaticUntil=Date.now()+1200;state.map.fitBounds(state.circle.getBounds(),{padding:[26,26]})}
 }
 function locate(load=true){
@@ -71,9 +69,13 @@ function normalize(features){
   for(const f of features){
     const c=f.geometry?.coordinates,p=f.properties||{};if(!Array.isArray(c)||c.length<2)continue;
     const lon=Number(c[0]),lat=Number(c[1]);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
-    const distance=km(state.center.lat,state.center.lon,lat,lon);if(distance>state.radiusKm+.3)continue;
+    // Search radius is always based on the visible map centre. The distance shown
+    // to the user, however, is always from the real GPS position when available.
+    const searchDistance=km(state.center.lat,state.center.lon,lat,lon);if(searchDistance>state.radiusKm+.3)continue;
+    const origin=state.gps||state.center;
+    const distance=km(origin.lat,origin.lon,lat,lon);
     let pr=p.price==null?null:Number(p.price);if(!Number.isFinite(pr)||pr<=0)pr=null;
-    out.push({id:String(p.id||p.externalId||`${lat}-${lon}`),name:p.name||p.brand||'Bencinska črpalka',brand:p.brand||'',address:[p.address,p.city].filter(Boolean).join(', '),lat,lon,country:String(p.country||'').toUpperCase(),price:pr,currency:p.currency||'EUR',updated:p.reportedAt||p.updatedAt||null,distance,source:'Pumperly'});
+    out.push({id:String(p.id||p.externalId||`${lat}-${lon}`),name:p.name||p.brand||'Bencinska črpalka',brand:p.brand||'',address:[p.address,p.city].filter(Boolean).join(', '),lat,lon,country:String(p.country||'').toUpperCase(),price:pr,currency:p.currency||'EUR',updated:p.reportedAt||p.updatedAt||null,distance,searchDistance,source:'Pumperly'});
   }
   return out;
 }

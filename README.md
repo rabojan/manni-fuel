@@ -1,14 +1,12 @@
-# Manni's World 3.6 — GPS checkpoint beta
+# Manni's World 3.7 — UI & distance fix beta
 
-Varna nadgradnja 3.5. Stabilni zemljevid, Pumperly in prikaz črpalk ostajajo nespremenjeni.
+Varna nadgradnja 3.6. Zemljevid, Pumperly, poti, tankanja in GPS checkpoint logika ostajajo nespremenjeni.
 
-## Novo
-- ob odprtju aplikacije (če je nastavljena pot) se shrani trenutna GPS kontrolna točka;
-- gumb **Osveži** v razdelku Pot naredi novo kontrolno točko;
-- tudi glavni gumb **↻** na zemljevidu sproži kontrolno točko;
-- med zaporednima kontrolnima točkama se izračuna cestna razdalja;
-- segmenti se seštevajo od zadnje spremembe/tankanja goriva;
-- iz nastavljene povprečne porabe se sproti oceni trenutno gorivo in varen doseg;
-- prikazana sta *Od zadnje osvežitve* in *Sledeno od tankanja*.
-
-Za natančno statistiko porabe ostane merodajno stanje kilometrov, vneseno ob tankanju. GPS checkpointi služijo sprotnemu ocenjevanju dosega in prihodnjim priporočilom za tankanje.
+## Popravki
+- odstranjena je stara oranžna iskalna pika;
+- črpalke se ob premiku zemljevida še vedno samodejno naložijo za vidno območje;
+- prikazana razdalja pri črpalki se zdaj računa od dejanske GPS lokacije (modra pika), ne od centra zemljevida;
+- center zemljevida se še vedno uporablja samo za iskanje črpalk na izbranem območju;
+- ostal je samo en uporabniški gumb **Osveži**;
+- glavni **↻ Osveži** je povečan in postavljen med **Najnižja** in razvrščanje;
+- sekundarni gumb Osveži v razdelku Pot & doseg je odstranjen.

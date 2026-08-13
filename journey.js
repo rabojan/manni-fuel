@@ -102,7 +102,7 @@
   }
 
   async function refresh(){
-    if(busy)return;busy=true;ui.refresh.disabled=true;ui.status.textContent='Osvežujem GPS, kilometre in pot …';
+    if(busy)return;busy=true;if(ui.refresh)ui.refresh.disabled=true;ui.status.textContent='Osvežujem GPS, kilometre in pot …';
     try{
       let data=window.ManniStorage.get(),r=data.route||{};
       if(!r.destination)throw new Error('Najprej nastavi cilj v razdelku Pot.');
@@ -136,7 +136,7 @@
       window.ManniStorage.update(d=>{d.journey={...d.journey,startCoord:start,nextIndex:idx,resolvedPoints:pts,lastRouteKm:route?.km??null,lastNextKm:nextRoute?.km??null,lastDurationMin:route?.min??null,updatedAt:new Date().toISOString()};return d});
       renderFromStored();
     }catch(e){console.warn('Journey refresh',e);ui.status.textContent=e.message||'Poti ni bilo mogoče preračunati.'}
-    finally{busy=false;ui.refresh.disabled=false}
+    finally{busy=false;if(ui.refresh)ui.refresh.disabled=false}
   }
 
   function resetFuelTracking(){
@@ -146,7 +146,7 @@
     renderFromStored();
   }
 
-  ui.refresh.addEventListener('click',refresh);
+  if(ui.refresh)ui.refresh.addEventListener('click',refresh);
   window.addEventListener('manni:checkpoint-request',refresh);
   window.addEventListener('manni:fuel-changed',resetFuelTracking);
   window.addEventListener('manni:trip-changed',renderFromStored);
@@ -154,5 +154,5 @@
   renderFromStored();
   // Opening the app creates a checkpoint automatically when an active destination exists.
   setTimeout(()=>{if(window.ManniStorage.get().route?.destination)refresh()},1000);
-  console.info('Manni 3.6 GPS checkpoint module ready');
+  console.info('Manni 3.7 GPS checkpoint module ready');
 })();
