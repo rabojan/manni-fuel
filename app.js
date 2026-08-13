@@ -121,4 +121,4 @@ $('settingsBtn').addEventListener('click',()=>{els.radius.value=state.radiusKm;e
 $('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){setCenter(state.center.lat,state.center.lon,state.gps?'gps':'map',true);loadStations()}});
 els.refresh.addEventListener('click',loadStations);els.locate.addEventListener('click',()=>locate(true));els.sort.addEventListener('change',render);
 initMap();closeSheet();locate(true);
-console.info("Manni Fuel 3.1 stable — Pumperly Europe core + reliable sheet");
+console.info("Manni Fuel 3.3 fuel-log-beta — stable Pumperly core unchanged");

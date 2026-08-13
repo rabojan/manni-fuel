@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="styles.css?v=3.2.0" />
+  <link rel="stylesheet" href="styles.css?v=3.3.0" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -27,6 +27,7 @@
       <div class="brand-title"><span class="camper-mark">🚐</span><span>Manni's World</span></div>
       <div class="header-actions">
         <button id="routeBtn" class="header-btn route-header-btn" aria-label="Pot">⌁</button>
+        <button id="fuelLogBtn" class="header-btn fuel-log-header-btn" aria-label="Manni in tankanja">⛽</button>
         <button id="settingsBtn" class="header-btn" aria-label="Nastavitve">⚙︎</button>
       </div>
     </header>
@@ -81,6 +82,48 @@
         <div id="routeViaList" class="route-via-list"></div>
         <div id="routeSummary" class="route-summary">Pot še ni nastavljena.</div>
         <div class="route-actions"><button id="clearRouteBtn" type="button" class="secondary-btn">Počisti</button><button id="saveRouteBtn" type="button" class="save-btn">Shrani pot</button></div>
+      </form>
+    </dialog>
+
+
+    <dialog id="fuelDialog">
+      <form method="dialog" class="settings-card fuel-card" onsubmit="return false">
+        <div class="settings-head">
+          <div><span class="eyebrow">Manni's World</span><h2>Manni & tankanja</h2></div>
+          <button id="fuelCloseBtn" type="button" class="close-btn" aria-label="Zapri">✕</button>
+        </div>
+
+        <section class="fuel-section">
+          <h3>Podatki o Manniju</h3>
+          <div id="vehicleSummary" class="vehicle-summary"></div>
+          <div class="fuel-grid">
+            <label class="field"><span>Velikost rezervoarja</span><div class="unit-input"><input id="vehicleTank" inputmode="decimal" type="number" step="0.1" min="0" placeholder="npr. 80"><b>l</b></div></label>
+            <label class="field"><span>Povprečna poraba</span><div class="unit-input"><input id="vehicleConsumption" inputmode="decimal" type="number" step="0.1" min="0" placeholder="npr. 10"><b>l/100 km</b></div></label>
+            <label class="field"><span>Trenutno gorivo</span><div class="unit-input"><input id="vehicleCurrentFuel" inputmode="decimal" type="number" step="0.1" min="0" placeholder="začetno stanje"><b>l</b></div><small>Začetno stanje vneseš enkrat. Pozneje ga bo uporabljal modul dosega.</small></label>
+            <label class="field"><span>Števec kilometrov</span><div class="unit-input"><input id="vehicleOdometer" inputmode="decimal" type="number" step="1" min="0" placeholder="trenutni km"><b>km</b></div></label>
+          </div>
+          <div class="reserve-row"><span>Varnostna rezerva</span><strong id="vehicleReserve">10 l</strong></div>
+          <button id="saveVehicleBtn" type="button" class="secondary-save-btn">Shrani podatke o Manniju</button>
+        </section>
+
+        <section class="fuel-section refuel-section">
+          <div class="fuel-section-title"><h3>Novo tankanje</h3><span>Vnesi dejanske podatke z računa.</span></div>
+          <div class="fuel-grid">
+            <label class="field"><span>Natočeno</span><div class="unit-input"><input id="refuelLitres" inputmode="decimal" type="number" step="0.01" min="0" placeholder="0,00"><b>l</b></div></label>
+            <label class="field"><span>Skupni znesek</span><div class="unit-input"><input id="refuelAmount" inputmode="decimal" type="number" step="0.01" min="0" placeholder="0,00"><b>€</b></div></label>
+            <label class="field"><span>Stanje kilometrov</span><div class="unit-input"><input id="refuelOdometer" inputmode="decimal" type="number" step="1" min="0" placeholder="km"><b>km</b></div></label>
+            <label class="field"><span>Datum in ura</span><input id="refuelTime" type="datetime-local"></label>
+          </div>
+          <label class="full-tank-check"><input id="refuelFull" type="checkbox"><span>Po tankanju je rezervoar poln</span></label>
+          <small class="fuel-note">To označi samo, ko je res poln. Tako lahko Manni med dvema polnima tankoma izračuna dejansko porabo tudi, če so bila vmes delna tankanja.</small>
+          <button id="addRefuelBtn" type="button" class="save-btn">Shrani tankanje</button>
+        </section>
+
+        <section class="fuel-section">
+          <div class="fuel-section-title"><h3>Zgodovina</h3><button id="clearFuelLogBtn" type="button" class="text-danger">Počisti</button></div>
+          <div id="fuelStats" class="fuel-stats"></div>
+          <div id="fuelHistory" class="fuel-history"></div>
+        </section>
       </form>
     </dialog>
 
@@ -140,8 +183,9 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="storage.js?v=3.2.0"></script>
-<script src="route.js?v=3.2.0"></script>
-<script src="app.js?v=3.2.0"></script>
+<script src="storage.js?v=3.3.0"></script>
+<script src="route.js?v=3.3.0"></script>
+<script src="fuel.js?v=3.3.0"></script>
+<script src="app.js?v=3.3.0"></script>
 </body>
 </html>

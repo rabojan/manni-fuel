@@ -1,16 +1,41 @@
 // Manni's World — versioned persistent storage
-// New modules use this store so future upgrades do not need to rewrite the stable fuel core.
+// Schema 2 adds vehicle state + fuel log while keeping route data intact.
 (function(){
   const KEY='manni.world.data';
-  const SCHEMA_VERSION=1;
+  const SCHEMA_VERSION=2;
   const defaults={
     schemaVersion:SCHEMA_VERSION,
     route:{ destination:'', via:[], updatedAt:null },
-    vehicle:{ tankLitres:null, averageConsumption:null, reserveLitres:10 },
+    vehicle:{
+      tankLitres:null,
+      averageConsumption:null,
+      reserveLitres:10,
+      currentFuelLitres:null,
+      odometerKm:null,
+      updatedAt:null
+    },
     fuelLog:[]
   };
 
   function clone(v){ return JSON.parse(JSON.stringify(v)); }
+  function numOrNull(v){
+    if(v===null || v==='' || typeof v==='undefined') return null;
+    const n=Number(v); return Number.isFinite(n)?n:null;
+  }
+  function normalizeEntry(e){
+    if(!e || typeof e!=='object') return null;
+    return {
+      id:String(e.id||('fuel-'+Date.now()+'-'+Math.random().toString(36).slice(2,8))),
+      timestamp:e.timestamp||new Date().toISOString(),
+      odometerKm:numOrNull(e.odometerKm),
+      litres:numOrNull(e.litres),
+      amountEur:numOrNull(e.amountEur),
+      pricePerLitre:numOrNull(e.pricePerLitre),
+      fullTank:Boolean(e.fullTank),
+      distanceSincePrevious:numOrNull(e.distanceSincePrevious),
+      consumptionSinceFull:numOrNull(e.consumptionSinceFull)
+    };
+  }
   function merge(base, saved){
     const out=clone(base);
     if(!saved || typeof saved!=='object') return out;
@@ -21,11 +46,15 @@
       out.route.updatedAt=saved.route.updatedAt||null;
     }
     if(saved.vehicle && typeof saved.vehicle==='object'){
-      if(Number.isFinite(Number(saved.vehicle.tankLitres))) out.vehicle.tankLitres=Number(saved.vehicle.tankLitres);
-      if(Number.isFinite(Number(saved.vehicle.averageConsumption))) out.vehicle.averageConsumption=Number(saved.vehicle.averageConsumption);
-      if(Number.isFinite(Number(saved.vehicle.reserveLitres))) out.vehicle.reserveLitres=Number(saved.vehicle.reserveLitres);
+      const v=saved.vehicle;
+      out.vehicle.tankLitres=numOrNull(v.tankLitres);
+      out.vehicle.averageConsumption=numOrNull(v.averageConsumption);
+      out.vehicle.reserveLitres=Number.isFinite(Number(v.reserveLitres))?Number(v.reserveLitres):10;
+      out.vehicle.currentFuelLitres=numOrNull(v.currentFuelLitres);
+      out.vehicle.odometerKm=numOrNull(v.odometerKm);
+      out.vehicle.updatedAt=v.updatedAt||null;
     }
-    if(Array.isArray(saved.fuelLog)) out.fuelLog=saved.fuelLog;
+    if(Array.isArray(saved.fuelLog)) out.fuelLog=saved.fuelLog.map(normalizeEntry).filter(Boolean);
     return out;
   }
   function load(){

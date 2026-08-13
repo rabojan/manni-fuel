@@ -1,13 +1,17 @@
-# Manni Fuel 3.2 — route-beta
+# Manni Fuel 3.3 — fuel-log-beta
 
-Varna razvojna veja na osnovi 3.1 stable.
+Varna razvojna veja iz 3.2 route-beta.
 
-Novo v 3.2:
-- ločen verzioniran `storage.js` za trajno shranjevanje novih podatkov,
-- ločen `route.js`,
-- cilj poti + poljubne grobe vmesne točke,
-- sprememba vrstnega reda in brisanje točk,
-- pot ostane shranjena po zaprtju aplikacije,
-- stabilni zemljevid/črpalke iz 3.1 niso funkcionalno spreminjani.
+Dodano v ločenem modulu `fuel.js`:
+- velikost rezervoarja,
+- nastavljiva povprečna poraba,
+- fiksna varnostna rezerva 10 l,
+- začetno/trenutno stanje goriva,
+- števec kilometrov,
+- vnos vsakega tankanja: litri, skupni znesek, kilometri, datum/ura,
+- samodejen izračun EUR/l,
+- skupni strošek in skupno natočeni litri,
+- zgodovina tankanj,
+- izračun dejanske porabe med dvema znanima polnima tankoma (upošteva tudi vmesna delna tankanja).
 
-Ta verzija še NE računa cestne trase, dosega ali tankanj. Namen je najprej potrditi arhitekturo in trajno shranjevanje.
+Zemljevid, Pumperly in route modul niso spremenjeni.
