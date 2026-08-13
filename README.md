@@ -1,12 +1,12 @@
-# Manni's World 3.7 — UI & distance fix beta
+# Manni Fuel 3.8 — map popup beta
 
-Varna nadgradnja 3.6. Zemljevid, Pumperly, poti, tankanja in GPS checkpoint logika ostajajo nespremenjeni.
+- spodnji seznam črpalk odstranjen
+- klik/tap na cenovni marker odpre informacijski popup
+- popup: črpalka, naslov, cena, cestna razdalja (če OSRM odgovori), gumb Navigiraj
+- oranžna/search točka in iskalni krog se ne izrisujeta več
+- modra pika je edina vidna uporabnikova GPS točka
+- iskanje po premiku zemljevida še vedno uporablja nevidni center vidnega zemljevida
+- glavni Osveži je edini vozni refresh in je večji, med Najnižja in sortiranjem
+- Pumperly/Europe core, route, fuel log, trips in GPS checkpoint moduli ostajajo ločeni
 
-## Popravki
-- odstranjena je stara oranžna iskalna pika;
-- črpalke se ob premiku zemljevida še vedno samodejno naložijo za vidno območje;
-- prikazana razdalja pri črpalki se zdaj računa od dejanske GPS lokacije (modra pika), ne od centra zemljevida;
-- center zemljevida se še vedno uporablja samo za iskanje črpalk na izbranem območju;
-- ostal je samo en uporabniški gumb **Osveži**;
-- glavni **↻ Osveži** je povečan in postavljen med **Najnižja** in razvrščanje;
-- sekundarni gumb Osveži v razdelku Pot & doseg je odstranjen.
+Opomba: če Pumperly vrne napačne koordinate konkretne postaje, bo tudi marker na napačni lokaciji. 3.8 popravlja UI in način merjenja do markerja; ne spreminja Pumperly podatkovne baze.

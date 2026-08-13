@@ -45,22 +45,6 @@
 
     <button id="locateBtn" class="floating-btn" aria-label="Moja lokacija">➤</button>
 
-    <section id="sheet" class="bottom-sheet sheet-low" aria-label="Bencinske črpalke">
-      <div id="sheetDragZone" class="sheet-drag-zone" aria-label="Povleci seznam">
-        <div class="sheet-handle-wrap"><div class="sheet-handle"></div></div>
-        <div class="sheet-head">
-        <div>
-          <h1>Bencinske črpalke</h1>
-          <p id="updatedText">Nalagam podatke …</p>
-        </div>
-        <button id="sheetToggle" class="sheet-hint" type="button" onclick="window.manniToggleSheet && window.manniToggleSheet()">Prikaži seznam ↑</button>
-        </div>
-      </div>
-
-      <div id="statusBar" class="status-bar">Pridobivam tvojo lokacijo …</div>
-      <div id="stationList" class="station-list" aria-live="polite"></div>
-    </section>
-
     <div id="routeBadge" class="route-badge" hidden></div>
 
     <dialog id="routeDialog">
@@ -221,11 +205,11 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="storage.js?v=3.6.0"></script>
-<script src="route.js?v=3.6.0"></script>
-<script src="fuel.js?v=3.6.0"></script>
-<script src="trips.js?v=3.6.0"></script>
-<script src="journey.js?v=3.6.0"></script>
-<script src="app.js?v=3.6.0"></script>
+<script src="storage.js?v=3.8.0"></script>
+<script src="route.js?v=3.8.0"></script>
+<script src="fuel.js?v=3.8.0"></script>
+<script src="trips.js?v=3.8.0"></script>
+<script src="journey.js?v=3.8.0"></script>
+<script src="app.js?v=3.8.0"></script>
 </body>
 </html>
