@@ -77,7 +77,7 @@
     if(tank!==null && tank<=10){alert('Rezervoar mora biti večji od varnostne rezerve 10 l.');return}
     if(current!==null && tank!==null && current>tank){alert('Trenutno gorivo ne more biti večje od velikosti rezervoarja.');return}
     window.ManniStorage.update(data=>{data.vehicle.tankLitres=tank;data.vehicle.averageConsumption=avg;data.vehicle.currentFuelLitres=current;data.vehicle.odometerKm=odo;data.vehicle.reserveLitres=10;data.vehicle.updatedAt=new Date().toISOString();return data});
-    render();
+    render();window.dispatchEvent(new CustomEvent('manni:fuel-changed'));
   }
   function addRefuel(){
     const l=n(ui.litres.value),a=n(ui.amount.value),odo=n(ui.km.value);
@@ -112,5 +112,5 @@
   ui.clear.addEventListener('click',()=>{if(!confirm('Izbrišem celotno zgodovino tankanj? Nastavitve Mannija ostanejo.'))return;window.ManniStorage.update(data=>{data.fuelLog=[];return data});render();window.dispatchEvent(new CustomEvent('manni:fuel-changed'))});
   render();
   window.addEventListener('manni:trip-changed',render);
-  console.info('Manni 3.4 fuel-log-beta: vehicle + refuelling module ready');
+  console.info('Manni 3.6: vehicle + refuelling module ready');
 })();

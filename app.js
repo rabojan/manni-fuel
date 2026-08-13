@@ -119,6 +119,6 @@ els.handle.addEventListener('touchend',e=>{if(sy==null)return;const y=e.changedT
 
 $('settingsBtn').addEventListener('click',()=>{els.radius.value=state.radiusKm;els.fuel.value=state.fuel;els.api.value=state.apiBase;els.settings.showModal()});
 $('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){setCenter(state.center.lat,state.center.lon,state.gps?'gps':'map',true);loadStations()}});
-els.refresh.addEventListener('click',loadStations);els.locate.addEventListener('click',()=>locate(true));els.sort.addEventListener('change',render);
+els.refresh.addEventListener('click',()=>{loadStations();window.dispatchEvent(new CustomEvent('manni:checkpoint-request'))});els.locate.addEventListener('click',()=>locate(true));els.sort.addEventListener('change',render);
 initMap();closeSheet();locate(true);
-console.info("Manni Fuel 3.3 fuel-log-beta — stable Pumperly core unchanged");
+console.info("Manni Fuel 3.6 GPS-checkpoint beta — stable Pumperly core unchanged");

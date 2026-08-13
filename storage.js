@@ -1,8 +1,8 @@
 // Manni's World — versioned persistent storage
-// Schema 3 adds active trip + trip archive while preserving route, vehicle and fuel data.
+// Schema 5 adds GPS checkpoint tracking while preserving route, vehicle, fuel and archive data.
 (function(){
   const KEY='manni.world.data';
-  const SCHEMA_VERSION=3;
+  const SCHEMA_VERSION=5;
   const defaults={
     schemaVersion:SCHEMA_VERSION,
     route:{ destination:'', via:[], updatedAt:null },
@@ -16,7 +16,22 @@
     },
     fuelLog:[],
     activeTrip:null,
-    tripArchive:[]
+    tripArchive:[],
+    journey:{
+      startCoord:null,
+      nextIndex:0,
+      resolvedPoints:[],
+      lastPosition:null,
+      lastCheckpointAt:null,
+      lastSegmentKm:null,
+      trackedKm:0,
+      estimatedFuelLitres:null,
+      checkpoints:[],
+      lastRouteKm:null,
+      lastNextKm:null,
+      lastDurationMin:null,
+      updatedAt:null
+    }
   };
 
   function clone(v){ return JSON.parse(JSON.stringify(v)); }
@@ -70,6 +85,37 @@
       }:null
     };
   }
+
+  function normalizeCoord(c){
+    if(!c || typeof c!=='object') return null;
+    const lat=numOrNull(c.lat), lon=numOrNull(c.lon);
+    return Number.isFinite(lat)&&Number.isFinite(lon)?{lat,lon}:null;
+  }
+  function normalizeJourney(j){
+    return {
+      startCoord:normalizeCoord(j?.startCoord),
+      nextIndex:Number.isFinite(Number(j?.nextIndex))?Math.max(0,Math.floor(Number(j.nextIndex))):0,
+      resolvedPoints:Array.isArray(j?.resolvedPoints)?j.resolvedPoints.map(x=>({
+        name:String(x?.name||''),
+        lat:numOrNull(x?.lat),
+        lon:numOrNull(x?.lon),
+        kind:String(x?.kind||'via')
+      })).filter(x=>x.name&&Number.isFinite(x.lat)&&Number.isFinite(x.lon)):[],
+      lastPosition:normalizeCoord(j?.lastPosition),
+      lastCheckpointAt:j?.lastCheckpointAt||null,
+      lastSegmentKm:numOrNull(j?.lastSegmentKm),
+      trackedKm:Number.isFinite(Number(j?.trackedKm))?Math.max(0,Number(j.trackedKm)):0,
+      estimatedFuelLitres:numOrNull(j?.estimatedFuelLitres),
+      checkpoints:Array.isArray(j?.checkpoints)?j.checkpoints.map(x=>({
+        lat:numOrNull(x?.lat), lon:numOrNull(x?.lon), timestamp:x?.timestamp||null, segmentKm:numOrNull(x?.segmentKm)
+      })).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon)).slice(-100):[],
+      lastRouteKm:numOrNull(j?.lastRouteKm),
+      lastNextKm:numOrNull(j?.lastNextKm),
+      lastDurationMin:numOrNull(j?.lastDurationMin),
+      updatedAt:j?.updatedAt||null
+    };
+  }
+
   function merge(base, saved){
     const out=clone(base);
     if(!saved || typeof saved!=='object') return out;
@@ -87,6 +133,7 @@
     if(Array.isArray(saved.fuelLog)) out.fuelLog=saved.fuelLog.map(normalizeEntry).filter(Boolean);
     out.activeTrip=normalizeTrip(saved.activeTrip);
     if(Array.isArray(saved.tripArchive)) out.tripArchive=saved.tripArchive.map(normalizeTrip).filter(Boolean);
+    out.journey=normalizeJourney(saved.journey||{});
     return out;
   }
   function load(){

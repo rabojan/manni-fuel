@@ -1,22 +1,14 @@
-# Manni's World — Fuel 3.4 (trips/archive beta)
+# Manni's World 3.6 — GPS checkpoint beta
 
-Safe incremental beta built on 3.3.
+Varna nadgradnja 3.5. Stabilni zemljevid, Pumperly in prikaz črpalk ostajajo nespremenjeni.
 
-## Added
-- Active trip lifecycle: start, finish, archive.
-- Archived trip details: route snapshot, kilometres, litres, total fuel cost, average €/l, measured consumption when exact full-to-full data exists, and all refuelling entries.
-- Safe deletion of current/test trip data without deleting vehicle settings or archive.
-- Optional deletion of individual archived trips or the whole archive with confirmation.
-- Vehicle settings remain global and survive trip completion.
-- Partial refuelling now updates estimated current fuel when previous fuel, odometer and average consumption are known.
-- Removed the redundant top Diesel chip (fuel remains Diesel B7 internally).
+## Novo
+- ob odprtju aplikacije (če je nastavljena pot) se shrani trenutna GPS kontrolna točka;
+- gumb **Osveži** v razdelku Pot naredi novo kontrolno točko;
+- tudi glavni gumb **↻** na zemljevidu sproži kontrolno točko;
+- med zaporednima kontrolnima točkama se izračuna cestna razdalja;
+- segmenti se seštevajo od zadnje spremembe/tankanja goriva;
+- iz nastavljene povprečne porabe se sproti oceni trenutno gorivo in varen doseg;
+- prikazana sta *Od zadnje osvežitve* in *Sledeno od tankanja*.
 
-## Intentionally unchanged
-- Map core
-- Pumperly / Worker station source
-- Marker clustering and popups
-- Bottom sheet logic
-- Route entry module
-
-## Storage
-Schema v3 migrates existing route, vehicle and fuel data and adds `activeTrip` + `tripArchive`.
+Za natančno statistiko porabe ostane merodajno stanje kilometrov, vneseno ob tankanju. GPS checkpointi služijo sprotnemu ocenjevanju dosega in prihodnjim priporočilom za tankanje.

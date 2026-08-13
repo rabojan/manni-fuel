@@ -1,4 +1,4 @@
-// Manni's World 3.4 route-beta
+// Manni's World 3.5 route-beta
 // Phase 1: persist destination + coarse route points without touching fuel-map core.
 (function(){
   function $(id){return document.getElementById(id)}
@@ -50,11 +50,11 @@
       data.route={destination,via:draftVia,updatedAt:new Date().toISOString()};
       return data;
     });
-    updateBadge();ui.dialog.close();
+    updateBadge();window.dispatchEvent(new CustomEvent('manni:route-changed'));ui.dialog.close();
   }
   function clear(){
     window.ManniStorage.update(data=>{data.route={destination:'',via:[],updatedAt:new Date().toISOString()};return data});
-    ui.destination.value='';draftVia=[];renderVia();updateBadge();
+    ui.destination.value='';draftVia=[];renderVia();updateBadge();window.dispatchEvent(new CustomEvent('manni:route-changed'));
   }
 
   ui.btn.addEventListener('click',open);
@@ -74,5 +74,5 @@
   });
   window.addEventListener('manni:trip-changed',()=>{const r=current();ui.destination.value=r.destination||'';draftVia=[...(r.via||[])];renderVia();updateBadge()});
   updateBadge();
-  console.info('Manni 3.4 route-beta: persistent route module ready');
+  console.info('Manni 3.5 route-beta: persistent route module ready');
 })();

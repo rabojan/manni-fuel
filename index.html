@@ -80,6 +80,21 @@
         <div class="route-section-head"><div><strong>Pot preko</strong><small>Groba smer poti — ni nujno, da se tam ustaviš.</small></div><button id="addViaBtn" type="button" class="mini-add-btn">+ Dodaj</button></div>
         <div id="routeViaList" class="route-via-list"></div>
         <div id="routeSummary" class="route-summary">Pot še ni nastavljena.</div>
+
+        <section id="journeyPanel" class="journey-panel" hidden>
+          <div class="journey-head"><div><span class="eyebrow">Pot & doseg</span><strong id="journeyStatus">Pot še ni preračunana.</strong></div><button id="journeyRefreshBtn" type="button" class="journey-refresh">↻ Osveži</button></div>
+          <div class="journey-grid">
+            <div><span>Naslednja točka</span><strong id="journeyNext">—</strong></div>
+            <div><span>Do naslednje</span><strong id="journeyNextKm">—</strong></div>
+            <div><span>Preostala pot</span><strong id="journeyRemaining">—</strong></div>
+            <div><span>Trenutno gorivo</span><strong id="journeyFuel">—</strong></div>
+            <div class="journey-safe"><span>Varen doseg</span><strong id="journeySafeRange">—</strong></div>
+            <div><span>Od zadnje osvežitve</span><strong id="journeySegmentKm">—</strong></div>
+            <div><span>Sledeno od tankanja</span><strong id="journeyTrackedKm">—</strong></div>
+          </div>
+          <p id="journeyNote" class="journey-note"></p>
+        </section>
+
         <div class="route-actions"><button id="clearRouteBtn" type="button" class="secondary-btn">Počisti</button><button id="saveRouteBtn" type="button" class="save-btn">Shrani pot</button></div>
       </form>
     </dialog>
@@ -206,10 +221,11 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="storage.js?v=3.4.0"></script>
-<script src="route.js?v=3.4.0"></script>
-<script src="fuel.js?v=3.4.0"></script>
-<script src="trips.js?v=3.4.0"></script>
-<script src="app.js?v=3.4.0"></script>
+<script src="storage.js?v=3.6.0"></script>
+<script src="route.js?v=3.6.0"></script>
+<script src="fuel.js?v=3.6.0"></script>
+<script src="trips.js?v=3.6.0"></script>
+<script src="journey.js?v=3.6.0"></script>
+<script src="app.js?v=3.6.0"></script>
 </body>
 </html>
