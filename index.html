@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="styles.css?v=3.1.0" />
+  <link rel="stylesheet" href="styles.css?v=3.2.0" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -25,7 +25,10 @@
 
     <header class="brand-header">
       <div class="brand-title"><span class="camper-mark">🚐</span><span>Manni's World</span></div>
-      <button id="settingsBtn" class="header-btn" aria-label="Nastavitve">⚙︎</button>
+      <div class="header-actions">
+        <button id="routeBtn" class="header-btn route-header-btn" aria-label="Pot">⌁</button>
+        <button id="settingsBtn" class="header-btn" aria-label="Nastavitve">⚙︎</button>
+      </div>
     </header>
 
     <div class="top-controls">
@@ -57,6 +60,29 @@
       <div id="statusBar" class="status-bar">Pridobivam tvojo lokacijo …</div>
       <div id="stationList" class="station-list" aria-live="polite"></div>
     </section>
+
+    <div id="routeBadge" class="route-badge" hidden></div>
+
+    <dialog id="routeDialog">
+      <form method="dialog" class="settings-card route-card" onsubmit="return false">
+        <div class="settings-head">
+          <div>
+            <span class="eyebrow">Manni's World</span>
+            <h2>Pot</h2>
+          </div>
+          <button id="routeCloseBtn" type="button" class="close-btn" aria-label="Zapri">✕</button>
+        </div>
+        <div class="route-start"><span>Začetek</span><strong>📍 Moja trenutna lokacija</strong></div>
+        <label class="field">
+          <span>Cilj</span>
+          <input id="routeDestination" type="text" autocomplete="off" placeholder="npr. Tallinn" />
+        </label>
+        <div class="route-section-head"><div><strong>Pot preko</strong><small>Groba smer poti — ni nujno, da se tam ustaviš.</small></div><button id="addViaBtn" type="button" class="mini-add-btn">+ Dodaj</button></div>
+        <div id="routeViaList" class="route-via-list"></div>
+        <div id="routeSummary" class="route-summary">Pot še ni nastavljena.</div>
+        <div class="route-actions"><button id="clearRouteBtn" type="button" class="secondary-btn">Počisti</button><button id="saveRouteBtn" type="button" class="save-btn">Shrani pot</button></div>
+      </form>
+    </dialog>
 
     <dialog id="settingsDialog">
       <form method="dialog" class="settings-card">
@@ -114,6 +140,8 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="app.js?v=3.1.0"></script>
+<script src="storage.js?v=3.2.0"></script>
+<script src="route.js?v=3.2.0"></script>
+<script src="app.js?v=3.2.0"></script>
 </body>
 </html>
