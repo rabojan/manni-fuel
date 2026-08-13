@@ -1,4 +1,4 @@
-// Manni's World 3.3 fuel-log-beta
+// Manni's World 3.4 fuel-log-beta
 // Vehicle settings and refuelling history are isolated from map and route modules.
 (function(){
   function $(id){return document.getElementById(id)}
@@ -8,7 +8,7 @@
     saveVehicle:$('saveVehicleBtn'), reserve:$('vehicleReserve'),
     litres:$('refuelLitres'), amount:$('refuelAmount'), km:$('refuelOdometer'), time:$('refuelTime'), full:$('refuelFull'),
     add:$('addRefuelBtn'), history:$('fuelHistory'), stats:$('fuelStats'), vehicleSummary:$('vehicleSummary'),
-    clear:$('clearFuelLogBtn')
+    clear:$('clearFuelLogBtn'), tripArchive:$('tripArchiveBtn')
   };
   if(!ui.btn || !ui.dialog || !window.ManniStorage) return;
 
@@ -86,22 +86,31 @@
     if(!(odo>=0)){alert('Vnesi stanje kilometrov na števcu.');return}
     const timestamp=ui.time.value?new Date(ui.time.value).toISOString():new Date().toISOString();
     window.ManniStorage.update(data=>{
+      const prevOdo=Number(data.vehicle.odometerKm), prevFuel=Number(data.vehicle.currentFuelLitres), avg=Number(data.vehicle.averageConsumption), cap=Number(data.vehicle.tankLitres);
+      let estimatedAfter=null;
+      if(ui.full.checked && Number.isFinite(cap)) estimatedAfter=cap;
+      else if(Number.isFinite(prevOdo)&&Number.isFinite(prevFuel)&&Number.isFinite(avg)&&avg>0&&odo>=prevOdo){
+        const consumed=(odo-prevOdo)*avg/100;
+        estimatedAfter=Math.max(0,prevFuel-consumed)+l;
+        if(Number.isFinite(cap)) estimatedAfter=Math.min(cap,estimatedAfter);
+      }
       data.fuelLog.push({id:'fuel-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),timestamp,odometerKm:odo,litres:l,amountEur:a,pricePerLitre:a/l,fullTank:Boolean(ui.full.checked)});
       data.vehicle.odometerKm=odo;
-      // If full, current fuel is known exactly. Otherwise keep manual current-fuel state untouched for now.
-      if(ui.full.checked && Number.isFinite(data.vehicle.tankLitres)) data.vehicle.currentFuelLitres=data.vehicle.tankLitres;
+      if(Number.isFinite(estimatedAfter)) data.vehicle.currentFuelLitres=estimatedAfter;
       data.vehicle.updatedAt=new Date().toISOString();
       return recalc(data);
     });
     ui.litres.value='';ui.amount.value='';ui.full.checked=false;ui.time.value=localDateInput();render();
+    window.dispatchEvent(new CustomEvent('manni:fuel-changed'));
   }
 
   ui.btn.addEventListener('click',open);
   ui.close.addEventListener('click',()=>ui.dialog.close());
   ui.saveVehicle.addEventListener('click',saveVehicle);
   ui.add.addEventListener('click',addRefuel);
-  ui.history.addEventListener('click',e=>{const b=e.target.closest('[data-delete]');if(!b)return;if(!confirm('Izbrišem to tankanje?'))return;window.ManniStorage.update(data=>{data.fuelLog=data.fuelLog.filter(x=>x.id!==b.dataset.delete);return recalc(data)});render()});
-  ui.clear.addEventListener('click',()=>{if(!confirm('Izbrišem celotno zgodovino tankanj? Nastavitve Mannija ostanejo.'))return;window.ManniStorage.update(data=>{data.fuelLog=[];return data});render()});
+  ui.history.addEventListener('click',e=>{const b=e.target.closest('[data-delete]');if(!b)return;if(!confirm('Izbrišem to tankanje?'))return;window.ManniStorage.update(data=>{data.fuelLog=data.fuelLog.filter(x=>x.id!==b.dataset.delete);return recalc(data)});render();window.dispatchEvent(new CustomEvent('manni:fuel-changed'))});
+  ui.clear.addEventListener('click',()=>{if(!confirm('Izbrišem celotno zgodovino tankanj? Nastavitve Mannija ostanejo.'))return;window.ManniStorage.update(data=>{data.fuelLog=[];return data});render();window.dispatchEvent(new CustomEvent('manni:fuel-changed'))});
   render();
-  console.info('Manni 3.3 fuel-log-beta: vehicle + refuelling module ready');
+  window.addEventListener('manni:trip-changed',render);
+  console.info('Manni 3.4 fuel-log-beta: vehicle + refuelling module ready');
 })();

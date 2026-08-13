@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="styles.css?v=3.3.0" />
+  <link rel="stylesheet" href="styles.css?v=3.4.0" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -34,7 +34,6 @@
 
     <div class="top-controls">
       <button id="refreshBtn" class="filter-chip refresh-chip" aria-label="Osveži">↻</button>
-      <div class="filter-chip fuel-chip" aria-label="Gorivo: Diesel">⛽ Diesel</div>
       <div class="filter-chip price-chip"><span class="chip-label">Najnižja</span><strong id="bestPrice">—</strong></div>
       <div class="filter-chip sort-chip">
         <select id="sortSelect" aria-label="Razvrsti">
@@ -93,6 +92,8 @@
           <button id="fuelCloseBtn" type="button" class="close-btn" aria-label="Zapri">✕</button>
         </div>
 
+        <button id="tripArchiveBtn" type="button" class="trip-launch-btn"><span>🧭</span><div><strong>Ture & arhiv</strong><small>Aktivna tura, zaključene ture in testni podatki</small></div><b>›</b></button>
+
         <section class="fuel-section">
           <h3>Podatki o Manniju</h3>
           <div id="vehicleSummary" class="vehicle-summary"></div>
@@ -124,6 +125,28 @@
           <div id="fuelStats" class="fuel-stats"></div>
           <div id="fuelHistory" class="fuel-history"></div>
         </section>
+      </form>
+    </dialog>
+
+
+    <dialog id="tripDialog">
+      <form method="dialog" class="settings-card trip-card" onsubmit="return false">
+        <div class="settings-head">
+          <div><span class="eyebrow">Manni's World</span><h2>Ture & arhiv</h2></div>
+          <button id="tripCloseBtn" type="button" class="close-btn" aria-label="Zapri">✕</button>
+        </div>
+        <div id="activeTripPanel"></div>
+        <label class="field trip-name-field"><span>Ime nove ture</span><input id="tripNameInput" type="text" autocomplete="off" placeholder="npr. Baltik 2027"></label>
+        <div class="trip-actions">
+          <button id="startTripBtn" type="button" class="save-btn">Začni turo</button>
+          <button id="finishTripBtn" type="button" class="save-btn" hidden>Zaključi in arhiviraj</button>
+          <button id="clearCurrentTripBtn" type="button" class="secondary-btn danger-outline">Izbriši trenutno/testno</button>
+        </div>
+        <section class="trip-archive-section">
+          <div class="fuel-section-title"><h3>Arhiv tur</h3><button id="clearTripArchiveBtn" type="button" class="text-danger" hidden>Izbriši ves arhiv</button></div>
+          <div id="tripArchiveList" class="trip-archive-list"></div>
+        </section>
+        <section id="tripDetail" class="trip-detail" hidden></section>
       </form>
     </dialog>
 
@@ -183,9 +206,10 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="storage.js?v=3.3.0"></script>
-<script src="route.js?v=3.3.0"></script>
-<script src="fuel.js?v=3.3.0"></script>
-<script src="app.js?v=3.3.0"></script>
+<script src="storage.js?v=3.4.0"></script>
+<script src="route.js?v=3.4.0"></script>
+<script src="fuel.js?v=3.4.0"></script>
+<script src="trips.js?v=3.4.0"></script>
+<script src="app.js?v=3.4.0"></script>
 </body>
 </html>

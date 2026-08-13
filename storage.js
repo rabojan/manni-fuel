@@ -1,8 +1,8 @@
 // Manni's World — versioned persistent storage
-// Schema 2 adds vehicle state + fuel log while keeping route data intact.
+// Schema 3 adds active trip + trip archive while preserving route, vehicle and fuel data.
 (function(){
   const KEY='manni.world.data';
-  const SCHEMA_VERSION=2;
+  const SCHEMA_VERSION=3;
   const defaults={
     schemaVersion:SCHEMA_VERSION,
     route:{ destination:'', via:[], updatedAt:null },
@@ -14,7 +14,9 @@
       odometerKm:null,
       updatedAt:null
     },
-    fuelLog:[]
+    fuelLog:[],
+    activeTrip:null,
+    tripArchive:[]
   };
 
   function clone(v){ return JSON.parse(JSON.stringify(v)); }
@@ -36,25 +38,55 @@
       consumptionSinceFull:numOrNull(e.consumptionSinceFull)
     };
   }
+  function normalizeRoute(r){
+    return {
+      destination:String(r?.destination||''),
+      via:Array.isArray(r?.via)?r.via.map(String).filter(Boolean):[],
+      updatedAt:r?.updatedAt||null
+    };
+  }
+  function normalizeTrip(t){
+    if(!t || typeof t!=='object') return null;
+    return {
+      id:String(t.id||('trip-'+Date.now()+'-'+Math.random().toString(36).slice(2,8))),
+      name:String(t.name||'Tura'),
+      startedAt:t.startedAt||new Date().toISOString(),
+      endedAt:t.endedAt||null,
+      startOdometerKm:numOrNull(t.startOdometerKm),
+      endOdometerKm:numOrNull(t.endOdometerKm),
+      route:normalizeRoute(t.route||{}),
+      vehicleSnapshot:t.vehicleSnapshot&&typeof t.vehicleSnapshot==='object'?{
+        tankLitres:numOrNull(t.vehicleSnapshot.tankLitres),
+        averageConsumption:numOrNull(t.vehicleSnapshot.averageConsumption),
+        reserveLitres:10
+      }:null,
+      fuelLog:Array.isArray(t.fuelLog)?t.fuelLog.map(normalizeEntry).filter(Boolean):[],
+      stats:t.stats&&typeof t.stats==='object'?{
+        distanceKm:numOrNull(t.stats.distanceKm),
+        totalLitres:numOrNull(t.stats.totalLitres),
+        totalCostEur:numOrNull(t.stats.totalCostEur),
+        averagePricePerLitre:numOrNull(t.stats.averagePricePerLitre),
+        measuredConsumption:numOrNull(t.stats.measuredConsumption)
+      }:null
+    };
+  }
   function merge(base, saved){
     const out=clone(base);
     if(!saved || typeof saved!=='object') return out;
     out.schemaVersion=SCHEMA_VERSION;
-    if(saved.route && typeof saved.route==='object'){
-      out.route.destination=String(saved.route.destination||'');
-      out.route.via=Array.isArray(saved.route.via)?saved.route.via.map(String).filter(Boolean):[];
-      out.route.updatedAt=saved.route.updatedAt||null;
-    }
+    out.route=normalizeRoute(saved.route||{});
     if(saved.vehicle && typeof saved.vehicle==='object'){
       const v=saved.vehicle;
       out.vehicle.tankLitres=numOrNull(v.tankLitres);
       out.vehicle.averageConsumption=numOrNull(v.averageConsumption);
-      out.vehicle.reserveLitres=Number.isFinite(Number(v.reserveLitres))?Number(v.reserveLitres):10;
+      out.vehicle.reserveLitres=10;
       out.vehicle.currentFuelLitres=numOrNull(v.currentFuelLitres);
       out.vehicle.odometerKm=numOrNull(v.odometerKm);
       out.vehicle.updatedAt=v.updatedAt||null;
     }
     if(Array.isArray(saved.fuelLog)) out.fuelLog=saved.fuelLog.map(normalizeEntry).filter(Boolean);
+    out.activeTrip=normalizeTrip(saved.activeTrip);
+    if(Array.isArray(saved.tripArchive)) out.tripArchive=saved.tripArchive.map(normalizeTrip).filter(Boolean);
     return out;
   }
   function load(){

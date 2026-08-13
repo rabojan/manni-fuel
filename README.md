@@ -1,17 +1,22 @@
-# Manni Fuel 3.3 — fuel-log-beta
+# Manni's World — Fuel 3.4 (trips/archive beta)
 
-Varna razvojna veja iz 3.2 route-beta.
+Safe incremental beta built on 3.3.
 
-Dodano v ločenem modulu `fuel.js`:
-- velikost rezervoarja,
-- nastavljiva povprečna poraba,
-- fiksna varnostna rezerva 10 l,
-- začetno/trenutno stanje goriva,
-- števec kilometrov,
-- vnos vsakega tankanja: litri, skupni znesek, kilometri, datum/ura,
-- samodejen izračun EUR/l,
-- skupni strošek in skupno natočeni litri,
-- zgodovina tankanj,
-- izračun dejanske porabe med dvema znanima polnima tankoma (upošteva tudi vmesna delna tankanja).
+## Added
+- Active trip lifecycle: start, finish, archive.
+- Archived trip details: route snapshot, kilometres, litres, total fuel cost, average €/l, measured consumption when exact full-to-full data exists, and all refuelling entries.
+- Safe deletion of current/test trip data without deleting vehicle settings or archive.
+- Optional deletion of individual archived trips or the whole archive with confirmation.
+- Vehicle settings remain global and survive trip completion.
+- Partial refuelling now updates estimated current fuel when previous fuel, odometer and average consumption are known.
+- Removed the redundant top Diesel chip (fuel remains Diesel B7 internally).
 
-Zemljevid, Pumperly in route modul niso spremenjeni.
+## Intentionally unchanged
+- Map core
+- Pumperly / Worker station source
+- Marker clustering and popups
+- Bottom sheet logic
+- Route entry module
+
+## Storage
+Schema v3 migrates existing route, vehicle and fuel data and adds `activeTrip` + `tripArchive`.
