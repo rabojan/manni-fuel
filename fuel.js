@@ -12,9 +12,9 @@
   };
   if(!ui.btn || !ui.dialog || !window.ManniStorage) return;
 
-  function money(v){return Number.isFinite(Number(v))?Number(v).toFixed(2).replace('.',',')+' €':'—'}
-  function litres(v){return Number.isFinite(Number(v))?Number(v).toFixed(1).replace('.',',')+' l':'—'}
-  function cons(v){return Number.isFinite(Number(v))?Number(v).toFixed(2).replace('.',',')+' l/100 km':'—'}
+  function money(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' €':'—'}
+  function litres(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l':'—'}
+  function cons(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l/100 km':'—'}
   function n(v){const x=Number(String(v??'').replace(',','.'));return Number.isFinite(x)?x:null}
   function localDateInput(iso){
     const d=iso?new Date(iso):new Date();

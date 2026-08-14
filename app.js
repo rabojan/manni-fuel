@@ -1,4 +1,4 @@
-// Manni Fuel 3.10 — stable map view. Refresh never changes map centre/zoom.
+// Manni Fuel 3.14 — stable map + verified smart recommendation.
 window.addEventListener('DOMContentLoaded',()=>{
   const w=document.getElementById('welcomeScreen');
   if(!w)return;
@@ -25,7 +25,8 @@ const FLAG={AT:'🇦🇹',BE:'🇧🇪',BA:'🇧🇦',BG:'🇧🇬',CH:'🇨🇭
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function km(a,b,c,d){const R=6371,p=Math.PI/180,da=(c-a)*p,dl=(d-b)*p,x=Math.sin(da/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function ago(iso){if(!iso)return'';const t=new Date(iso).getTime();if(!Number.isFinite(t))return'';const m=Math.max(0,Math.round((Date.now()-t)/60000));if(m<2)return'pravkar';if(m<60)return`${m} min`;const h=Math.round(m/60);if(h<48)return`${h} h`;return`${Math.round(h/24)} d`}
-function price(s){if(s.price==null)return null;const d=['HUF','RSD'].includes(s.currency)?1:3;return `${Number(s.price).toFixed(d)} ${s.currency||'EUR'}`}
+function slNum(v,d=2){return new Intl.NumberFormat('sl-SI',{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v))}
+function price(s){if(s.price==null)return null;return `${slNum(s.price,2)} ${s.currency==='EUR'?'€/l':(s.currency||'EUR')+'/l'}`}
 function nav(s){return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.lat+','+s.lon)}&travelmode=driving`}
 
 function normText(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
@@ -181,7 +182,7 @@ async function getRoadDistance(s){
 
 function popupHtml(s,roadKm=null,loadingRoad=false,hours=null,loadingHours=false){
   const a=ago(s.updated);
-  const dist=roadKm!=null?`<strong>${roadKm.toFixed(1)} km po cesti</strong>`:(loadingRoad?'Računam cestno razdaljo …':`≈ ${s.distance.toFixed(1)} km zračno`);
+  const dist=roadKm!=null?`<strong>${slNum(roadKm,1)} km po cesti</strong>`:(loadingRoad?'Računam cestno razdaljo …':`≈ ${slNum(s.distance,1)} km zračno`);
   let hoursHtml='';
   if(loadingHours)hoursHtml='<div class="popup-hours unknown"><span>⚪</span> Preverjam odpiralni čas …</div>';
   else if(hours){const cls=hours.known?(hours.open?'open':'closed'):'unknown',dot=hours.known?(hours.open?'🟢':'🔴'):'⚪';hoursHtml=`<div class="popup-hours ${cls}"><span>${dot}</span> ${esc(hours.label)}</div>`}
@@ -239,7 +240,7 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.10 — refresh preserves map view; startup/location zoom 14');
+console.info('Manni Fuel 3.14 — refresh preserves map view; startup/location zoom 14');
 
 // 3.11: allow recommendation module to show a remote station without coupling modules.
 window.addEventListener('manni:show-station',async e=>{

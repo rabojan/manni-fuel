@@ -18,7 +18,16 @@
   function updateBadge(){const r=current();if(r.destination){ui.badge.textContent=r.destination;ui.badge.hidden=false;ui.summary.textContent=`Moja lokacija → ${r.via.length?r.via.join(' → ')+' → ':''}${r.destination}${r.destinationPoint?'':' · ⚠ ponovno izberi kraj'}`}else{ui.badge.hidden=true;ui.summary.textContent='Pot še ni nastavljena.'}}
   function renderVia(){ui.viaList.innerHTML='';if(!draftVia.length){ui.viaList.innerHTML='<div class="route-empty">Vmesne točke niso obvezne. Pri dodani točki začni tipkati in nato izberi pravi kraj iz predlogov.</div>';return}draftVia.forEach((item,i)=>{const row=document.createElement('div');row.className='via-row';row.innerHTML=`<div class="route-autocomplete-wrap via-autocomplete"><input class="via-input ${item.point?'route-confirmed':'route-unconfirmed'}" data-i="${i}" value="${esc(item.text)}" placeholder="npr. Dunaj"><span class="route-confirm-mark">${item.point?'✓':'!'}</span></div><div class="via-actions"><button type="button" data-act="up" data-i="${i}">↑</button><button type="button" data-act="down" data-i="${i}">↓</button><button type="button" data-act="remove" data-i="${i}">✕</button></div>`;ui.viaList.appendChild(row)})}
   function open(){const r=current();draftDestination={text:r.destination||'',point:r.destinationPoint||null};draftVia=(r.via||[]).map((text,i)=>({text,point:(r.viaPoints||[])[i]||null}));ui.destination.value=draftDestination.text;ui.destination.classList.toggle('route-confirmed',!!draftDestination.point);ui.destination.classList.toggle('route-unconfirmed',!draftDestination.point&&!!draftDestination.text);renderVia();ui.dialog.showModal()}
-  function validateDraft(){if(!draftDestination.text.trim())return 'Vnesi cilj poti.';if(!draftDestination.point)return 'Cilj izberi iz ponujenega seznama, da Manni shrani pravilne koordinate.';for(let i=0;i<draftVia.length;i++){if(draftVia[i].text.trim()&&!draftVia[i].point)return `Točko »${draftVia[i].text}« izberi iz ponujenega seznama.`}return null}
+  function samePoint(a,b){if(!a||!b)return false;const dx=Number(a.lat)-Number(b.lat),dy=Number(a.lon)-Number(b.lon);return Number.isFinite(dx)&&Number.isFinite(dy)&&Math.hypot(dx,dy)<0.0015}
+  function validateDraft(){
+    if(!draftDestination.text.trim())return 'Vnesi cilj poti.';
+    if(!draftDestination.point)return 'Cilj izberi iz ponujenega seznama, da Manni shrani pravilne koordinate.';
+    for(let i=0;i<draftVia.length;i++){if(draftVia[i].text.trim()&&!draftVia[i].point)return `Točko »${draftVia[i].text}« izberi iz ponujenega seznama.`}
+    const chosen=draftVia.filter(x=>x.point);
+    for(let i=1;i<chosen.length;i++)if(samePoint(chosen[i-1].point,chosen[i].point))return `Podvojena točka: »${pointLabel(chosen[i].point)}« je v poti dvakrat zapored.`;
+    if(chosen.length&&samePoint(chosen[chosen.length-1].point,draftDestination.point))return `Podvojena točka: »${pointLabel(draftDestination.point)}« je že nastavljena kot cilj. Odstrani jo iz »Pot preko«.`;
+    return null
+  }
   function save(){const err=validateDraft();if(err){ui.summary.textContent='⚠ '+err;ui.summary.classList.add('route-summary-warning');return}ui.summary.classList.remove('route-summary-warning');const viaItems=draftVia.filter(x=>x.text.trim()&&x.point);window.ManniStorage.update(data=>{data.route={destination:pointLabel(draftDestination.point),destinationPoint:draftDestination.point,via:viaItems.map(x=>pointLabel(x.point)),viaPoints:viaItems.map(x=>x.point),updatedAt:new Date().toISOString()};return data});updateBadge();window.dispatchEvent(new CustomEvent('manni:route-changed'));ui.dialog.close()}
   function clear(){window.ManniStorage.update(data=>{data.route={destination:'',destinationPoint:null,via:[],viaPoints:[],updatedAt:new Date().toISOString()};return data});draftDestination={text:'',point:null};draftVia=[];ui.destination.value='';renderVia();updateBadge();window.dispatchEvent(new CustomEvent('manni:route-changed'))}
   ensureDestWrap();
@@ -32,5 +41,5 @@
   ui.viaList.addEventListener('click',e=>{const b=e.target.closest('button[data-act]');if(!b)return;closeSuggestions();const i=Number(b.dataset.i),act=b.dataset.act;if(act==='remove')draftVia.splice(i,1);if(act==='up'&&i>0)[draftVia[i-1],draftVia[i]]=[draftVia[i],draftVia[i-1]];if(act==='down'&&i<draftVia.length-1)[draftVia[i+1],draftVia[i]]=[draftVia[i],draftVia[i+1]];renderVia()});
   document.addEventListener('click',e=>{if(activeBox&&!e.target.closest('.route-autocomplete-wrap'))closeSuggestions()});
   window.addEventListener('manni:trip-changed',updateBadge);updateBadge();
-  console.info('Manni 3.12 route autocomplete ready');
+  console.info('Manni 3.14 route autocomplete + duplicate guard ready');
 })();

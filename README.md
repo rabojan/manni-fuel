@@ -1,12 +1,14 @@
-# Manni Fuel 3.12 — Route validation + autocomplete beta
+# Manni Fuel 3.14 — Smart Fuel Verified Recommendation beta
 
-Ta verzija spreminja samo vnos in preverjanje poti.
+Nadgradnja po 3.12 vključuje dogovorjene popravke:
+- slovenski zapis števil (vejica za decimalke, pika za tisočice; cena goriva na 2 decimalki),
+- jasna zaznava podvojene točke poti,
+- 10 l kot stroga varnostna rezerva,
+- preferenca smiselnih črpalk izven avtocestnega servisnega območja,
+- zgodnejše ekonomično tankanje samo ob smiselnem prihranku,
+- zemljevid še vedno kaže vse Pumperly postaje,
+- Smart Fuel pa za avtomatsko priporočilo uporablja samo lokacije, dodatno potrjene z OSM `amenity=fuel`,
+- 1 glavno priporočilo + 2 preverjeni alternativi,
+- če ni zanesljivo preverjene postaje, aplikacija raje ne poda avtomatskega priporočila.
 
-- Cilj in vsako točko `Pot preko` je treba izbrati iz predlogov med tipkanjem.
-- Shrani se točen naziv, država in GPS koordinate; Manni pozneje ne ugiba več po prostem tekstu.
-- Stare poti iz 3.11 ostanejo vidne, vendar jih je treba enkrat ponovno izbrati iz predlogov.
-- `Pot & doseg` pokaže cestno razdaljo vsakega odseka posebej.
-- Sumljiv odsek označi opozorilo in Smart Fuel se ne izvede, dokler pot ni potrjena.
-- Zemljevid, črpalke, tankanja, ture, arhiv, popupi in opening-hours logika niso namenoma spreminjani.
-
-Test: trenutna lokacija → Graz → Dunaj/Wien → Ostrava → Warszawa → Kaunas → Riga → Tallinn. Pri vsakem vnosu izberi predlog, nato shrani pot.
+Testni URL po objavi: `https://rabojan.github.io/manni-fuel/?v=314`
