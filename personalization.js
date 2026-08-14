@@ -1,7 +1,7 @@
 // Manni's World 3.33 — local per-device personalisation.
 (function(){
   const NAME_KEY='manniProfileName',IMG_FLAG='manniCustomSplash';
-  const DEFAULT_NAME="Manni's World",DEFAULT_IMG='manni-splash-341.png';
+  const DEFAULT_NAME="Manni's World",DEFAULT_IMG='manni-world-splash.png';
   let currentUrl=null;
   function $(id){return document.getElementById(id)}
   function openDb(){return new Promise((resolve,reject)=>{const r=indexedDB.open('manni-personalisation',1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('assets'))r.result.createObjectStore('assets')};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}

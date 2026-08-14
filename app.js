@@ -17,7 +17,7 @@ const state={
 };
 const $=id=>document.getElementById(id);
 const els={
-  radius:$('radiusSelect'),fuel:$('fuelSelect'),
+  best:$('bestPrice'),sort:$('sortSelect'),radius:$('radiusSelect'),fuel:$('fuelSelect'),
   api:$('apiBaseInput'),settings:$('settingsDialog'),refresh:$('refreshBtn'),locate:$('locateBtn')
 };
 const FLAG={AT:'🇦🇹',BE:'🇧🇪',BA:'🇧🇦',BG:'🇧🇬',CH:'🇨🇭',CZ:'🇨🇿',DE:'🇩🇪',DK:'🇩🇰',EE:'🇪🇪',ES:'🇪🇸',FI:'🇫🇮',FR:'🇫🇷',GB:'🇬🇧',GR:'🇬🇷',HR:'🇭🇷',HU:'🇭🇺',IE:'🇮🇪',IT:'🇮🇹',LT:'🇱🇹',LU:'🇱🇺',LV:'🇱🇻',MK:'🇲🇰',NL:'🇳🇱',NO:'🇳🇴',PL:'🇵🇱',PT:'🇵🇹',RO:'🇷🇴',RS:'🇷🇸',SE:'🇸🇪',SI:'🇸🇮',SK:'🇸🇰',TR:'🇹🇷',MD:'🇲🇩'};
@@ -199,6 +199,9 @@ function popupHtml(s,roadKm=null,loadingRoad=false,hours=null,loadingHours=false
 function render(){
   state.markerLayer.clearLayers();state.stationMarkers.clear();
   const arr=[...state.stations];
+  const priced=arr.filter(s=>s.price!=null);
+  const best=priced.length?priced.reduce((a,b)=>(a.priceEur??Infinity)<=(b.priceEur??Infinity)?a:b):null;
+  els.best.textContent=best?(best.currency==='EUR'?`${slNum(best.price,2)} €`:(Number.isFinite(best.priceEur)?`≈ ${slNum(best.priceEur,2)} €`:markerPrice(best))):'—';
   arr.forEach(s=>{
     const m=L.marker([s.lat,s.lon],{icon:markerIcon(s)});
     m.bindPopup(popupHtml(s,null,!!state.gps,null,true),{closeButton:true,autoPan:true,maxWidth:290});
@@ -242,8 +245,9 @@ els.refresh.addEventListener('click',()=>{
   window.dispatchEvent(new CustomEvent('manni:checkpoint-request'));
 });
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
+els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.36 — cleaner map controls');
+console.info('Manni Fuel 3.33 — personalisation & languages beta');
 
 // 3.31: recommendation focus — direct, immediate popup without reloading the station area.
 window.addEventListener('manni:show-station',async e=>{

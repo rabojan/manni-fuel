@@ -1,11 +1,16 @@
-# Manni Fuel 3.41 — Fresh Home App
+# Manni's World 3.35 — Multilingual Help & Guide
 
-Root-cause rebuild from the last stable Home Screen base (3.35.1).
+Nadgradnja 3.33 z integriranimi navodili za uporabo.
 
-Key change: Home Screen installs from a brand-new URL `manni-home-341.html` and every local CSS/JS/icon/splash/manifest asset has a brand-new physical filename. This avoids reusing any old `styles.css`/`index.html` asset from the installed web-app container.
+## Novo
+- v Nastavitvah je gumb **Navodila za uporabo / Anleitung / User guide**
+- navodila so integrirana neposredno v aplikacijo
+- vsebina se samodejno preklopi glede na izbran jezik: **SL / DE / EN**
+- vizualni elementi navodil so izdelani v istem slogu kot Manni in se ne zanašajo na statične slike z napačnim jezikom
+- vodič razloži namen aplikacije, nastavitve vozila, pot, razliko do Sygica, obvoze in Osveži, Smart Fuel, meje, avtocesto, rezervo 10/8 l, preverjanje cen in črpalk, tankanja, stroške, ture in osebne nastavitve
 
-Top row: Destination | Refresh | My location.
-The old Lowest price and Cheapest/Nearest controls are removed.
-No Smart Fuel / route / pricing algorithm changes.
+## Pomembno
+Smart Fuel algoritem, routing, Pumperly/OSM logika, tankanja in stroški poti niso vsebinsko spremenjeni.
 
-3.41.1: Targeted iPhone Home Screen standalone safe-area fix only. No Smart Fuel, routing, fuel, cost, map-data or personalization logic changed. Home Screen header/top controls no longer add iOS top safe-area twice. New test entry: manni-home-3411.html.
+Testna URL različica po objavi na GitHub Pages:
+`https://rabojan.github.io/manni-fuel/?v=334`
