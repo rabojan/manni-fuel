@@ -295,3 +295,17 @@ window.addEventListener('manni:show-station',async e=>{
     }
   }
 });
+
+// 3.39 — standalone/PWA cache hygiene. No UI or algorithm changes.
+(async function manniPwaCacheHygiene(){
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+    if(window.caches?.keys){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+  }catch(e){ console.warn('Manni cache cleanup skipped', e); }
+})();

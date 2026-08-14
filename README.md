@@ -20,3 +20,10 @@ Testna URL različica po objavi na GitHub Pages:
 Main map UI cleanup: removed the 'Najnižja cena' display and the 'Najcenejše / Najbližje' selector. The central Refresh button remains. Smart Fuel and station data logic are unchanged. Help text updated accordingly in SL/DE/EN.
 
 3.38: clean rebuild zgornje vozne vrstice iz stabilne 3.36 osnove. Cilj, Osveži in Lokacija so v eni vrstici; vsi gumbi so klikabilni. Splash uporablja 100dvh.
+
+3.39 PWA/Home Screen cache fix:
+- all local CSS/JS/manifest/icon URLs use the same 3.39 build version,
+- Home Screen standalone mode detects a new build and performs one fresh reload,
+- stale service workers are unregistered,
+- Cache Storage is cleared,
+- no Smart Fuel, routing, map, fuel, trip or UI-layout logic was changed from 3.38.

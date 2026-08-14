@@ -7,12 +7,30 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Manni's World — Fuel</title>
+  <script>
+  (function(){
+    var BUILD='3.39.0';
+    try{
+      var last=localStorage.getItem('manni.build');
+      var standalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
+      if(standalone && last!==BUILD){
+        localStorage.setItem('manni.build',BUILD);
+        if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister();}))}).catch(function(){})}
+        if(window.caches&&caches.keys){caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k)}))}).catch(function(){})}
+        var u=new URL(location.href);u.searchParams.set('build','3390');u.searchParams.set('_reload',Date.now().toString());
+        location.replace(u.toString());
+      } else {
+        localStorage.setItem('manni.build',BUILD);
+      }
+    }catch(e){}
+  })();
+  </script>
   <link rel="manifest" href="manifest.json?v=3380" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3380" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="styles.css?v=3.38.0" />
+  <link rel="stylesheet" href="styles.css?v=3.39.0" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -236,6 +254,6 @@
 <script src="price-sanity.js?v=3.36.0"></script>
 <script src="recommendation.js?v=3.36.0"></script>
 <script src="trip-costs.js?v=3.36.0"></script>
-<script src="app.js?v=3.38.0"></script>
+<script src="app.js?v=3.39.0"></script>
 </body>
 </html>
