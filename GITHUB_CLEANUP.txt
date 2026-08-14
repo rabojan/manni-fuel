@@ -1,0 +1,51 @@
+MANNI FUEL — GITHUB CLEANUP
+
+On GitHub repository root keep only the canonical files in this folder.
+Delete old temporary/versioned files if present, especially names beginning with:
+
+manni-home-
+manni-341
+manni-3411
+manni-app-
+manni-route-
+manni-storage-
+manni-trips-
+manni-trip-costs-
+manni-journey-
+manni-recommendation-
+manni-price-sanity-
+manni-personalization-
+manni-i18n-
+manni-help-
+manni-fueldata-
+manifest-341
+manifest-3411
+manni-icon-
+manni-touch-
+manni-splash-
+
+Do NOT delete the canonical files:
+index.html
+styles.css
+manifest.json
+app.js
+route.js
+fuel.js
+journey.js
+recommendation.js
+price-sanity.js
+storage.js
+trips.js
+trip-costs.js
+i18n.js
+personalization.js
+help-guide.js
+sw.js
+apple-touch-icon.png
+icon-192.png
+icon-512.png
+manni-world-splash.png
+README.md
+
+After cleanup, upload/overwrite ALL files from this folder to repository root.
+Then wait for GitHub Pages deployment to finish.

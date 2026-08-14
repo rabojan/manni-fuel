@@ -14,3 +14,6 @@ Smart Fuel algoritem, routing, Pumperly/OSM logika, tankanja in stroški poti ni
 
 Testna URL različica po objavi na GitHub Pages:
 `https://rabojan.github.io/manni-fuel/?v=334`
+
+
+3.35.2: iOS Home Screen standalone fix based on Web Inspector measurements: status bar default + no duplicated top safe-area for header/top controls.
