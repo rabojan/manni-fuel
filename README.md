@@ -1,15 +1,12 @@
-# Manni Fuel 3.11 — Smart Fuel Recommendation beta
+# Manni Fuel 3.12 — Route validation + autocomplete beta
 
-Adds an isolated smart-refuelling module on top of the stable 3.10 map build.
+Ta verzija spreminja samo vnos in preverjanje poti.
 
-- reads current GPS position, saved route, fuel and average consumption
-- keeps the fixed 10 L reserve
-- builds the remaining road route using existing route points
-- searches fuel stations along the reachable route
-- only considers stations up to 5 km from the route corridor
-- shows one main recommendation and two alternatives
-- prefers lowest price, but keeps roughly 100 km of additional safety margin before the reserve limit whenever possible
-- recommendation refreshes after app start, route/fuel changes and the main Refresh action
-- "Pokaži na zemljevidu" moves the map to the recommended station
+- Cilj in vsako točko `Pot preko` je treba izbrati iz predlogov med tipkanjem.
+- Shrani se točen naziv, država in GPS koordinate; Manni pozneje ne ugiba več po prostem tekstu.
+- Stare poti iz 3.11 ostanejo vidne, vendar jih je treba enkrat ponovno izbrati iz predlogov.
+- `Pot & doseg` pokaže cestno razdaljo vsakega odseka posebej.
+- Sumljiv odsek označi opozorilo in Smart Fuel se ne izvede, dokler pot ni potrjena.
+- Zemljevid, črpalke, tankanja, ture, arhiv, popupi in opening-hours logika niso namenoma spreminjani.
 
-This beta deliberately does not yet implement country-border price strategy. That should be added only after the core recommendation is validated.
+Test: trenutna lokacija → Graz → Dunaj/Wien → Ostrava → Warszawa → Kaunas → Riga → Tallinn. Pri vsakem vnosu izberi predlog, nato shrani pot.

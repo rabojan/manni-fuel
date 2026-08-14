@@ -1,18 +1,16 @@
-// Manni's World 3.11 — Smart Fuel Recommendation beta
+// Manni's World 3.12 — Smart Fuel Recommendation guarded by route validation
 // Isolated module: reads route/vehicle data and queries the existing Worker.
 (function(){
   const $=id=>document.getElementById(id);
   const ui={panel:$('recommendPanel'),status:$('recommendStatus'),main:$('recommendMain'),alts:$('recommendAlternatives'),reason:$('recommendReason')};
   if(!ui.panel||!window.ManniStorage)return;
   const API=(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,'');
-  const PHOTON='https://photon.komoot.io/api/';
   const OSRM='https://router.project-osrm.org/route/v1/driving/';
   let busy=false;
   const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const rad=x=>x*Math.PI/180;
   function hav(a,b){const R=6371,dlat=rad(b.lat-a.lat),dlon=rad(b.lon-a.lon),x=Math.sin(dlat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dlon/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
   function pos(){return new Promise((res,rej)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lon:p.coords.longitude}),()=>rej(new Error('GPS lokacije ni bilo mogoče dobiti.')),{enableHighAccuracy:true,timeout:12000,maximumAge:15000}):rej(new Error('GPS ni na voljo.')))}
-  async function geocode(name){const u=new URL(PHOTON);u.searchParams.set('q',name);u.searchParams.set('limit','1');const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json(),c=j.features?.[0]?.geometry?.coordinates;if(!c)throw new Error('Ne najdem '+name);return {lat:+c[1],lon:+c[0],name}}
   async function routeGeometry(points){const coords=points.map(p=>`${p.lon},${p.lat}`).join(';');const u=new URL(OSRM+coords);u.searchParams.set('overview','full');u.searchParams.set('geometries','geojson');u.searchParams.set('steps','false');const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json(),rt=j.routes?.[0];if(!rt)throw new Error('Poti ni mogoče izračunati.');return {km:rt.distance/1000,line:rt.geometry.coordinates.map(c=>({lon:+c[0],lat:+c[1]}))}}
   function cumulative(line){const c=[0];for(let i=1;i<line.length;i++)c[i]=c[i-1]+hav(line[i-1],line[i]);return c}
   function project(st,line,cum){let best={off:Infinity,along:0};for(let i=1;i<line.length;i++){const a=line[i-1],b=line[i];const lat0=rad((a.lat+b.lat+st.lat)/3),sx=(st.lon-a.lon)*111.32*Math.cos(lat0),sy=(st.lat-a.lat)*110.57,bx=(b.lon-a.lon)*111.32*Math.cos(lat0),by=(b.lat-a.lat)*110.57,den=bx*bx+by*by,t=den?Math.max(0,Math.min(1,(sx*bx+sy*by)/den)):0,dx=sx-t*bx,dy=sy-t*by,off=Math.hypot(dx,dy);if(off<best.off){best={off,along:cum[i-1]+t*(cum[i]-cum[i-1])}}}return best}
@@ -28,9 +26,11 @@
     try{
       const d=window.ManniStorage.get(),route=d.route||{},avg=Number(d.vehicle?.averageConsumption),fuel=liveFuel(d),reserve=10;
       if(!route.destination)throw new Error('Najprej nastavi cilj poti.');if(!Number.isFinite(avg)||avg<=0||!Number.isFinite(fuel))throw new Error('Vnesi trenutno gorivo in povprečno porabo.');
+      if(!route.destinationPoint || (route.via||[]).length!==(route.viaPoints||[]).length)throw new Error('Pot vsebuje nepotrjene točke. Odpri Pot in jih izberi iz predlogov.');
+      if(d.journey?.routeValid===false)throw new Error('Pot ni potrjena. Najprej popravi označeni odsek poti.');
       const safeKm=Math.max(0,(fuel-reserve)/avg*100);if(safeKm<20)throw new Error('Doseg je že zelo majhen — izberi najbližjo odprto črpalko.');
       const start=await pos();let pts=(d.journey?.resolvedPoints||[]).slice(d.journey?.nextIndex||0).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
-      if(!pts.length){for(const n of [...(route.via||[]),route.destination])pts.push(await geocode(n))}
+      if(!pts.length){pts=[...(route.viaPoints||[]),route.destinationPoint].map(p=>({lat:Number(p.lat),lon:Number(p.lon),name:p.label||p.name})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon))}
       const rt=await routeGeometry([start,...pts]),cum=cumulative(rt.line),samples=sample(rt.line,cum,safeKm+120);
       ui.status.textContent=`Pregledujem črpalke ob naslednjih ${Math.round(Math.min(safeKm,rt.km))} km …`;
       const batches=[];for(let i=0;i<samples.length;i+=3){const part=await Promise.all(samples.slice(i,i+3).map(x=>fetchAt(x,20)));batches.push(...part)}
@@ -59,5 +59,6 @@
   window.addEventListener('manni:checkpoint-request',()=>setTimeout(refresh,700));
   window.addEventListener('manni:route-changed',()=>setTimeout(refresh,1200));
   window.addEventListener('manni:fuel-changed',()=>setTimeout(refresh,600));
+  window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)setTimeout(refresh,350);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent='';}});
   setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)refresh()},2600);
 })();
