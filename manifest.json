@@ -1,14 +1,22 @@
 {
-  "name":"Manni's World — Fuel",
-  "short_name":"Manni's World",
-  "start_url":"./",
-  "display":"standalone",
-  "orientation":"portrait",
-  "background_color":"#f47a18",
-  "theme_color":"#f47a18",
-  "description":"Hitro iskanje cen dizla in bencinskih črpalk po Evropi",
-  "icons":[
-    {"src":"icon-192.png","sizes":"192x192","type":"image/png"},
-    {"src":"icon-512.png","sizes":"512x512","type":"image/png"}
+  "name": "Manni's World — Fuel",
+  "short_name": "Manni's World",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f47a18",
+  "theme_color": "#f47a18",
+  "description": "Hitro iskanje cen dizla in bencinskih črpalk po Evropi",
+  "icons": [
+    {
+      "src": "icon-192.png?v=3351",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png?v=3351",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
