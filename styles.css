@@ -105,118 +105,18 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
 @media(max-width:560px){.guide-dialog{width:calc(100% - 8px);height:97dvh;border-radius:22px}.guide-hero{padding:52px 18px 22px}.guide-hero h2{font-size:25px}.guide-card{margin:9px;padding:16px}.guide-quick{grid-template-columns:repeat(2,1fr)}.guide-quick>div:last-child{grid-column:1/-1}.guide-cost-demo{grid-template-columns:repeat(3,1fr)}.guide-map-demo{height:200px}}
 
 
-/* 3.37.1 — iPhone layout fix: splash + single-row driving controls */
-html,body,#app{width:100%;height:100%;min-height:100%;}
-@supports(height:100dvh){html,body,#app{height:100dvh;min-height:100dvh}}
-#welcomeScreen.welcome-screen{
-  position:fixed!important;
-  inset:0!important;
-  width:100vw!important;
-  height:100vh!important;
-  min-height:100vh!important;
-  margin:0!important;
-  padding:0!important;
-  overflow:hidden!important;
-  background:#081814!important;
-}
-@supports(height:100dvh){#welcomeScreen.welcome-screen{height:100dvh!important;min-height:100dvh!important}}
-.welcome-image{
-  position:absolute!important;
-  inset:0!important;
-  width:100%!important;
-  height:100%!important;
-  min-height:100%!important;
-  object-fit:cover!important;
-  object-position:center center!important;
-  display:block!important;
-}
-.welcome-skip{z-index:2}
+/* 3.36: clean main map — only the central Refresh control remains */
+.top-controls{display:flex!important;justify-content:center!important;align-items:center!important;left:12px!important;right:12px!important;grid-template-columns:none!important;pointer-events:none}
+.top-controls .refresh-chip{pointer-events:auto;margin:0 auto}
 
-.top-controls{
-  position:absolute!important;
-  z-index:930!important;
-  top:calc(74px + var(--safe-top))!important;
-  left:12px!important;
-  right:12px!important;
-  width:auto!important;
-  height:68px!important;
-  min-height:68px!important;
-  display:grid!important;
-  grid-template-columns:minmax(0,1fr) 68px 56px!important;
-  grid-template-rows:68px!important;
-  gap:10px!important;
-  align-items:center!important;
-  justify-content:stretch!important;
-  overflow:visible!important;
-  pointer-events:auto!important;
-}
-.route-badge{
-  position:static!important;
-  z-index:auto!important;
-  top:auto!important;
-  left:auto!important;
-  right:auto!important;
-  width:100%!important;
-  max-width:100%!important;
-  min-width:0!important;
-  height:56px!important;
-  margin:0!important;
-  padding:0 14px!important;
-  border:1px solid rgba(255,255,255,.22)!important;
-  border-radius:18px!important;
-  background:linear-gradient(135deg,#0f7861,#149372)!important;
-  color:#fff!important;
-  box-shadow:0 9px 22px rgba(7,76,63,.26)!important;
-  display:flex!important;
-  align-items:center!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-  white-space:nowrap!important;
-  font-size:14px!important;
-  font-weight:900!important;
-  line-height:1!important;
-}
-.route-badge::before{content:'🎯';flex:0 0 auto;margin-right:7px;font-size:17px}
-.route-badge[hidden]{display:none!important}
-.top-controls .refresh-chip{
-  position:static!important;
-  width:68px!important;
-  height:68px!important;
-  min-width:68px!important;
-  margin:0!important;
-  padding:0!important;
-  border-radius:50%!important;
-  justify-self:center!important;
-  align-self:center!important;
-  pointer-events:auto!important;
-}
-.floating-btn.inline-locate-btn{
-  position:static!important;
-  top:auto!important;
-  right:auto!important;
-  left:auto!important;
-  width:56px!important;
-  height:56px!important;
-  margin:0!important;
-  padding:0!important;
-  border-radius:18px!important;
-  justify-self:end!important;
-  align-self:center!important;
-  pointer-events:auto!important;
-}
-@media(max-width:390px){
-  .top-controls{
-    grid-template-columns:minmax(0,1fr) 64px 52px!important;
-    grid-template-rows:64px!important;
-    height:64px!important;
-    min-height:64px!important;
-    gap:8px!important;
-  }
-  .route-badge{height:52px!important;padding:0 11px!important;font-size:12px!important;border-radius:16px!important}
-  .route-badge::before{font-size:15px;margin-right:5px}
-  .top-controls .refresh-chip{width:64px!important;height:64px!important;min-width:64px!important}
-  .floating-btn.inline-locate-btn{width:52px!important;height:52px!important;border-radius:16px!important}
-}
-@media(max-height:700px){
-  .top-controls{top:calc(66px + var(--safe-top))!important}
-}
+/* 3.38 — clean driving controls rebuilt from stable 3.36 layout */
+#welcomeScreen.welcome-screen{height:100vh;height:100dvh;min-height:100vh;min-height:100dvh}
+.welcome-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.driving-controls{position:absolute;z-index:930;top:calc(74px + var(--safe-top));left:12px;right:12px;display:grid;grid-template-columns:minmax(0,1fr) 68px 56px;gap:10px;align-items:center;pointer-events:auto}
+.driving-controls>*{pointer-events:auto}
+.driving-controls .route-badge{position:static;top:auto;left:auto;z-index:auto;max-width:none;min-width:0;height:56px;padding:0 14px;border-radius:18px;background:linear-gradient(135deg,#0f7861,#149372);display:flex;align-items:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 9px 22px rgba(7,76,63,.25);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid rgba(255,255,255,.18)}
+.driving-controls .route-badge::before{content:'🎯';flex:0 0 auto;margin-right:8px;font-size:17px}
+.driving-controls .refresh-chip{position:static;margin:0;justify-self:center;width:68px!important;height:68px!important;min-width:68px!important;border-radius:34px!important;font-size:36px!important;padding:0!important;box-shadow:0 9px 24px rgba(0,0,0,.22)!important}
+.driving-controls .locate-inline{position:static;top:auto;right:auto;justify-self:end;width:56px;height:56px;border-radius:18px;background:rgba(255,255,255,.97);color:var(--green);box-shadow:0 9px 22px rgba(0,0,0,.18);font-size:21px}
+/* old 3.36 top-controls/floating placements are intentionally unused in 3.38 */
+@media(max-width:390px){.driving-controls{grid-template-columns:minmax(0,1fr) 64px 52px;gap:8px}.driving-controls .route-badge{height:52px;padding:0 12px;font-size:12.5px;border-radius:16px}.driving-controls .refresh-chip{width:64px!important;height:64px!important;min-width:64px!important}.driving-controls .locate-inline{width:52px;height:52px;border-radius:16px}}
