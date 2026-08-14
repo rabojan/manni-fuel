@@ -1,4 +1,4 @@
-// Manni's World 3.26 — resilient verification retry (positive cache only)
+// Manni's World 3.28 — Smart Fuel performance: bounded requests, no duplicate reruns
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -32,7 +32,10 @@
   const BORDER_MIN_SAVING_EUR=5;        // estimated real saving required for an early border stop
   const VERIFY_RADIUS_M=300;
   let busy=false;
-  let rerunRequested=false;
+  let pendingRefresh=false;
+  let refreshTimer=null;
+  let runSeq=0;
+  let lastCompletedAt=0;
 
   const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const rad=x=>x*Math.PI/180;
@@ -51,20 +54,20 @@
     return native;
   }
   function pos(){return new Promise((res,rej)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lon:p.coords.longitude}),()=>rej(new Error('GPS lokacije ni bilo mogoče dobiti.')),{enableHighAccuracy:true,timeout:12000,maximumAge:15000}):rej(new Error('GPS ni na voljo.')))}
-  async function routeGeometry(points){const coords=points.map(p=>`${p.lon},${p.lat}`).join(';');const u=new URL(OSRM+coords);u.searchParams.set('overview','full');u.searchParams.set('geometries','geojson');u.searchParams.set('steps','false');const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('Poti ni mogoče izračunati.');const j=await r.json(),rt=j.routes?.[0];if(!rt)throw new Error('Poti ni mogoče izračunati.');return {km:rt.distance/1000,line:rt.geometry.coordinates.map(c=>({lon:+c[0],lat:+c[1]}))}}
+  async function routeGeometry(points){const coords=points.map(p=>`${p.lon},${p.lat}`).join(';');const u=new URL(OSRM+coords);u.searchParams.set('overview','full');u.searchParams.set('geometries','geojson');u.searchParams.set('steps','false');const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),7000);try{const r=await fetch(u,{cache:'no-store',signal:ctl.signal});if(!r.ok)throw new Error('Poti ni mogoče izračunati.');const j=await r.json(),rt=j.routes?.[0];if(!rt)throw new Error('Poti ni mogoče izračunati.');return {km:rt.distance/1000,line:rt.geometry.coordinates.map(c=>({lon:+c[0],lat:+c[1]}))}}finally{clearTimeout(tm)}}
   function cumulative(line){const c=[0];for(let i=1;i<line.length;i++)c[i]=c[i-1]+hav(line[i-1],line[i]);return c}
   function project(st,line,cum){let best={off:Infinity,along:0};for(let i=1;i<line.length;i++){const a=line[i-1],b=line[i];const lat0=rad((a.lat+b.lat+st.lat)/3),sx=(st.lon-a.lon)*111.32*Math.cos(lat0),sy=(st.lat-a.lat)*110.57,bx=(b.lon-a.lon)*111.32*Math.cos(lat0),by=(b.lat-a.lat)*110.57,den=bx*bx+by*by,t=den?Math.max(0,Math.min(1,(sx*bx+sy*by)/den)):0,dx=sx-t*bx,dy=sy-t*by,off=Math.hypot(dx,dy);if(off<best.off)best={off,along:cum[i-1]+t*(cum[i]-cum[i-1])}}return best}
-  async function fetchAt(p,radius=20){const u=new URL(API+'/stations');u.searchParams.set('lat',p.lat);u.searchParams.set('lon',p.lon);u.searchParams.set('radius',radius);u.searchParams.set('fuel','B7');const r=await fetch(u,{cache:'no-store'});if(!r.ok)return [];const j=await r.json();return j.features||j.data?.features||[]}
+  async function fetchAt(p,radius=20){const u=new URL(API+'/stations');u.searchParams.set('lat',p.lat);u.searchParams.set('lon',p.lon);u.searchParams.set('radius',radius);u.searchParams.set('fuel','B7');const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),5500);try{const r=await fetch(u,{cache:'no-store',signal:ctl.signal});if(!r.ok)return [];const j=await r.json();return j.features||j.data?.features||[]}catch{return []}finally{clearTimeout(tm)}}
   function norm(fs){const out=[];for(const f of fs){const c=f.geometry?.coordinates,p=f.properties||{};if(!c)continue;const lon=+c[0],lat=+c[1],price=+p.price;if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(price)||price<=0)continue;out.push({id:String(p.id||p.externalId||lat+'-'+lon),name:p.name||p.brand||'Bencinska črpalka',brand:p.brand||'',address:[p.address,p.city].filter(Boolean).join(', '),country:String(p.country||'').toUpperCase(),lat,lon,price,currency:p.currency||'EUR'})}return out}
   function dedupe(a){const out=[];for(const s of a)if(!out.some(x=>hav(s,x)<.08))out.push(s);return out}
-  function sample(line,cum,maxKm){const pts=[line[0]],step=55,limit=Math.min(maxKm,cum[cum.length-1]);let target=step;for(let i=1;i<line.length&&target<=limit;i++){while(cum[i]>=target&&target<=limit){pts.push(line[i]);target+=step}}if(limit>20){let idx=cum.findIndex(x=>x>=limit);if(idx<0)idx=line.length-1;pts.push(line[idx])}return pts.slice(0,16)}
+  function sample(line,cum,maxKm){const pts=[line[0]],step=80,limit=Math.min(maxKm,cum[cum.length-1]);let target=step;for(let i=1;i<line.length&&target<=limit;i++){while(cum[i]>=target&&target<=limit){pts.push(line[i]);target+=step}}if(limit>20){let idx=cum.findIndex(x=>x>=limit);if(idx<0)idx=line.length-1;pts.push(line[idx])}return pts.slice(0,10)}
   async function fxTable(currencies){
     const out={EUR:1};
     const needed=[...new Set(currencies.filter(c=>c&&c!=='EUR'))];
     if(!needed.length)return out;
     try{
       const u=new URL(FX_API);u.searchParams.set('base','EUR');u.searchParams.set('quotes',needed.join(','));
-      const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw 0;
+      const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),5000);const r=await fetch(u,{cache:'no-store',signal:ctl.signal});clearTimeout(tm);if(!r.ok)throw 0;
       const rows=await r.json();
       for(const row of Array.isArray(rows)?rows:[]){const q=String(row.quote||'').toUpperCase(),rate=Number(row.rate);if(q&&Number.isFinite(rate)&&rate>0)out[q]=rate}
     }catch(e){}
@@ -101,80 +104,67 @@
     if(!stations.length)return {out,ok:true};
     const clauses=[];
     for(const s of stations){
-      clauses.push(`nwr(around:${VERIFY_RADIUS_M},${s.lat},${s.lon})[amenity=fuel];`);
-      clauses.push(`nwr(around:550,${s.lat},${s.lon})[highway=services];`);
-      clauses.push(`nwr(around:550,${s.lat},${s.lon})[highway=rest_area];`);
+      clauses.push(`nwr(around:350,${s.lat},${s.lon})[amenity=fuel];`);
+      clauses.push(`nwr(around:650,${s.lat},${s.lon})[highway=services];`);
+      clauses.push(`nwr(around:650,${s.lat},${s.lon})[highway=rest_area];`);
     }
-    const q=`[out:json][timeout:12];(${clauses.join('')});out center tags;`;
-    let payload=null;
-    for(const endpoint of OVERPASS_ENDPOINTS){
-      const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),12000);
-      try{
-        const r=await fetch(endpoint+'?data='+encodeURIComponent(q),{signal:ctl.signal,headers:{Accept:'application/json'}});
-        if(!r.ok)throw new Error('overpass');
-        payload=await r.json();clearTimeout(tm);break;
-      }catch(e){clearTimeout(tm)}
-    }
+    const q=`[out:json][timeout:8];(${clauses.join('')});out center tags;`;
+    const tryEndpoint=async endpoint=>{const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),5500);try{const r=await fetch(endpoint+'?data='+encodeURIComponent(q),{signal:ctl.signal,headers:{Accept:'application/json'}});if(!r.ok)return null;return await r.json()}catch{return null}finally{clearTimeout(tm)}};
+    const payload=await new Promise(resolve=>{let left=OVERPASS_ENDPOINTS.length,done=false;OVERPASS_ENDPOINTS.forEach(async endpoint=>{const x=await tryEndpoint(endpoint);if(done)return;if(x){done=true;resolve(x);return}left--;if(left===0){done=true;resolve(null)}})});
     if(!payload)return {out,ok:false};
     const fuels=[],services=[];
-    for(const e of payload.elements||[]){const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const tags=e.tags||{},x={lat,lon,tags};if(tags.amenity==='fuel')fuels.push(x);if(tags.highway==='services'||tags.highway==='rest_area')services.push(x)}
-    // An HTTP 200 with no nearby fuel objects is not strong enough evidence that all candidates are false.
-    // Treat the batch as indeterminate so we can retry the important candidates individually.
-    if(!fuels.length)return {out,ok:false};
+    for(const e of payload.elements||[]){
+      const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
+      const tags=e.tags||{},x={lat,lon,tags};
+      if(tags.amenity==='fuel')fuels.push(x);
+      if(tags.highway==='services'||tags.highway==='rest_area')services.push(x);
+    }
     for(const s of stations){
       let best=null;
-      for(const f of fuels){const d=hav(s,f),score=Math.max(nameScore(s.name,f.tags.name),nameScore(s.brand,f.tags.brand),nameScore(s.name,f.tags.brand),nameScore(s.brand,f.tags.name));if(!best||d<best.d||(Math.abs(d-best.d)<.03&&score>best.score))best={f,d,score}}
-      const motorway=services.some(x=>hav(s,x)<=.55);
-      if(!best){out.set(s.id,{status:'mismatch',distanceKm:null,score:0,motorway,osm:null});continue}
-      const verified=(best.d<=.055)||(best.d<=.18&&best.score>=.25);
-      const status=verified?'verified':(best.d<=.30?'unverified':'mismatch');
-      out.set(s.id,{status,distanceKm:best.d,score:best.score,motorway,osm:best.f});
+      for(const f of fuels){
+        const d=hav(s,f),score=Math.max(nameScore(s.name,f.tags.name),nameScore(s.brand,f.tags.brand),nameScore(s.name,f.tags.brand),nameScore(s.brand,f.tags.name));
+        if(!best||d<best.d||(Math.abs(d-best.d)<.03&&score>best.score))best={f,d,score};
+      }
+      const motorway=services.some(x=>hav(s,x)<=.65);
+      if(!best)continue;
+      // Physical fuel POI very close is enough. A looser distance requires at least a name/brand match.
+      const verified=(best.d<=.09)||(best.d<=.28&&best.score>=.25);
+      if(verified)out.set(s.id,{status:'verified',distanceKm:best.d,score:best.score,motorway,osm:best.f});
     }
     return {out,ok:true};
   }
-  async function osmEvidence(stations){
+
+  async function verifyShortlist(stations){
     const final=new Map(stations.map(s=>[s.id,{status:'unverified',distanceKm:null,score:0,motorway:null,osm:null}]));
-    if(!stations.length)return final;
+    if(!stations.length){final._meta={cached:0,liveBatches:0,totalBatches:0};return final}
     const cache=cachedEvidence(stations);
     for(const [id,x] of cache)final.set(id,x);
     const need=stations.filter(s=>!cache.has(s.id));
+    const batches=[];for(let i=0;i<need.length;i+=3)batches.push(need.slice(i,i+3));
+    // Two small batches can run in parallel. This bounds verification time instead of serially waiting for 30 stations.
+    const results=await Promise.all(batches.slice(0,3).map(b=>queryEvidenceBatch(b)));
     let liveOk=0;
-    // Small batches are much more reliable on mobile than one giant Overpass request.
-    for(let i=0;i<need.length;i+=6){
-      const batch=need.slice(i,i+6),res=await queryEvidenceBatch(batch);
-      if(res.ok){liveOk++;for(const [id,x] of res.out)final.set(id,x);saveEvidence(batch,res.out)}
-    }
-    final._meta={cached:cache.size,liveBatches:liveOk,totalBatches:Math.ceil(need.length/6)};
+    results.forEach((res,i)=>{if(!res?.ok)return;liveOk++;for(const [id,x] of res.out)final.set(id,x);saveEvidence(batches[i],res.out)});
+    final._meta={cached:cache.size,liveBatches:liveOk,totalBatches:batches.length};
     return final;
   }
 
-
-  async function retryImportantStations(stations,existing){
-    // Retry a small shortlist one-by-one with a wider radius. This avoids a temporary/partial
-    // Overpass batch response removing Smart Fuel entirely.
-    const out=new Map(existing||[]);
-    const candidates=stations.filter(s=>(out.get(s.id)?.status||'unverified')!=='verified').slice(0,10);
-    for(const s of candidates){
-      const q=`[out:json][timeout:10];(nwr(around:450,${s.lat},${s.lon})[amenity=fuel];nwr(around:700,${s.lat},${s.lon})[highway=services];nwr(around:700,${s.lat},${s.lon})[highway=rest_area];);out center tags;`;
-      let payload=null;
-      for(const endpoint of OVERPASS_ENDPOINTS){
-        const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),10000);
-        try{const r=await fetch(endpoint+'?data='+encodeURIComponent(q),{signal:ctl.signal,headers:{Accept:'application/json'}});if(!r.ok)throw new Error('overpass');payload=await r.json();clearTimeout(tm);break}catch(e){clearTimeout(tm)}
-      }
-      if(!payload)continue;
-      const fuels=[],services=[];
-      for(const e of payload.elements||[]){const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const tags=e.tags||{},x={lat,lon,tags};if(tags.amenity==='fuel')fuels.push(x);if(tags.highway==='services'||tags.highway==='rest_area')services.push(x)}
-      if(!fuels.length)continue;
-      let best=null;
-      for(const f of fuels){const d=hav(s,f),score=Math.max(nameScore(s.name,f.tags.name),nameScore(s.brand,f.tags.brand),nameScore(s.name,f.tags.brand),nameScore(s.brand,f.tags.name));if(!best||d<best.d||(Math.abs(d-best.d)<.03&&score>best.score))best={f,d,score}}
-      const motorway=services.some(x=>hav(s,x)<=.7);
-      if(best){
-        // Wider retry threshold, but still require a plausible physical fuel POI nearby.
-        const verified=(best.d<=.12)||(best.d<=.30&&best.score>=.25);
-        if(verified){const ev={status:'verified',distanceKm:best.d,score:best.score,motorway,osm:best.f};out.set(s.id,ev);saveEvidence([s],new Map([[s.id,ev]]))}
-      }
+  function preliminaryShortlist(stations,{safeKm,extendedKm}){
+    const chosen=[];
+    const add=s=>{if(s&&!chosen.some(x=>x.id===s.id))chosen.push(s)};
+    const byPrice=(arr)=>[...arr].filter(x=>Number.isFinite(x.priceEur)).sort((a,b)=>(a.priceEur-b.priceEur)||(a.off-b.off));
+    // Focus on meaningful refuel windows, not every station along the full route.
+    const targets=[Math.max(0,safeKm-260),Math.max(0,safeKm-180),Math.max(0,safeKm-120),Math.max(0,safeKm-60),safeKm,Math.min(extendedKm,safeKm+50)];
+    for(const t of targets){
+      const near=byPrice(stations.filter(x=>Math.abs(x.along-t)<=85));
+      near.slice(0,2).forEach(add);
     }
-    return out;
+    // Keep up to two strong candidates from each country encountered in the reachable corridor for border logic.
+    const groups=new Map();
+    for(const s of stations){const c=String(s.country||'').toUpperCase();if(!c)continue;if(!groups.has(c))groups.set(c,[]);groups.get(c).push(s)}
+    for(const arr of groups.values())byPrice(arr).slice(0,2).forEach(add);
+    // Never verify more than 9 fresh candidates in one calculation.
+    return chosen.sort((a,b)=>a.along-b.along).slice(0,9);
   }
 
 
@@ -354,8 +344,8 @@
   }
 
   async function refresh(){
-    if(busy){rerunRequested=true;ui.panel.hidden=false;ui.status.textContent='Preračunavam …';return;}
-    busy=true;rerunRequested=false;ui.panel.hidden=false;ui.status.textContent='Preračunavam …';ui.main.innerHTML='<div class="recommend-empty">Preverjam pot, doseg, cene in črpalke …</div>';ui.alts.innerHTML='';ui.reason.textContent='';
+    if(busy){pendingRefresh=true;return;}
+    const mySeq=++runSeq,runStarted=Date.now();busy=true;pendingRefresh=false;ui.panel.hidden=false;ui.status.textContent='Preračunavam …';ui.main.innerHTML='<div class="recommend-empty">Preverjam pot, doseg, cene in črpalke …</div>';ui.alts.innerHTML='';ui.reason.textContent='';
     try{
       const d=window.ManniStorage.get(),route=d.route||{},avg=Number(d.vehicle?.averageConsumption),fuel=liveFuel(d),tank=Number(d.vehicle?.tankLitres),reserve=RESERVE_L;
       if(!route.destination)throw new Error('Najprej nastavi cilj poti.');
@@ -372,39 +362,29 @@
       const rt=await routeGeometry([start,...pts]),cum=cumulative(rt.line),samples=sample(rt.line,cum,Math.min(rt.km,extendedKm+80));
       ui.status.textContent=`Pregledujem naslednjih približno ${Math.round(Math.min(extendedKm,rt.km))} km …`;
 
-      const batches=[];for(let i=0;i<samples.length;i+=4){const part=await Promise.all(samples.slice(i,i+4).map(x=>fetchAt(x,20)));batches.push(...part)}
+      const batches=[];let sampleIdx=0;const workers=Array.from({length:Math.min(6,samples.length)},async()=>{while(sampleIdx<samples.length){const i=sampleIdx++;batches[i]=await fetchAt(samples[i],20)}});await Promise.all(workers)
       let stations=dedupe(norm(batches.flat())).map(s=>Object.assign(s,project(s,rt.line,cum))).filter(s=>s.off<=MAX_OFF_ROUTE_KM&&s.along>=0&&s.along<=extendedKm);
       if(!stations.length)throw new Error('V dosegu do absolutne 8-litrske meje nisem našel črpalke največ 5 km od poti.');
 
-      // Verify candidates spread across the whole reachable route, not only the cheapest early cluster.
-      const normalStart=Math.max(0,safeKm-NORMAL_ZONE_KM);
-      const buckets=new Map();
-      for(const x of stations){const k=Math.floor(x.along/100);if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(x)}
-      const spread=[];
-      for(const arr of buckets.values()){
-        arr.sort((a,b)=>(a.price-b.price)||(a.off-b.off));
-        spread.push(...arr.slice(0,3));
+      // Stage 1: cheap filters first. Convert currencies and reject obviously impossible national-low prices
+      // BEFORE using Overpass. Then verify only a small shortlist that can actually influence the decision.
+      const allCurrencies=[...new Set(stations.map(x=>x.currency))];
+      const fx=await fxTable(allCurrencies);
+      stations.forEach(x=>{x.priceEur=eurPrice(x,fx)});
+      let prePool=stations.filter(x=>Number.isFinite(x.priceEur));
+      if(window.ManniPriceSanity?.nationalAvg){
+        prePool=prePool.filter(x=>{const avgN=window.ManniPriceSanity.nationalAvg(x.country);return !Number.isFinite(avgN)||x.priceEur>=avgN*0.80});
       }
-      const late=[...stations].filter(x=>x.along>=normalStart).sort((a,b)=>b.along-a.along).slice(0,8);
-      const verifySet=dedupe([...spread,...late]).sort((a,b)=>a.along-b.along).slice(0,30);
-      ui.status.textContent='Preverjam, ali priporočene lokacije res obstajajo …';
-      let evidence=await osmEvidence(verifySet);
+      if(!prePool.length)throw new Error('V dosegu ni kandidatov z verodostojno ceno.');
+      const verifySet=preliminaryShortlist(prePool,{safeKm,extendedKm});
+      ui.status.textContent=`Preverjam ${verifySet.length} najpomembnejših lokacij …`;
+      const evidence=await verifyShortlist(verifySet);
       const verifyMeta=evidence._meta||{cached:0,liveBatches:0,totalBatches:0};
       verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0});
-
-      let verifiedCount=verifySet.filter(x=>x.verified).length;
-      if(!verifiedCount){
-        ui.status.textContent='Prvi pregled ni potrdil dovolj lokacij — preverjam najboljše kandidate še enkrat …';
-        evidence=await retryImportantStations(verifySet,evidence);
-        verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0});
-        verifiedCount=verifySet.filter(x=>x.verified).length;
-      }
-      if(!verifiedCount){const extra=verifyMeta.totalBatches&&verifyMeta.liveBatches===0&&verifyMeta.cached===0?' OSM trenutno ni vrnil dovolj podatkov; poskusi Osveži čez nekaj sekund.':'';throw new Error('V dosegu sem našel črpalke, vendar trenutno nobene ne morem dovolj zanesljivo potrditi za avtomatsko priporočilo.'+extra)}
-
       const verifiedStations=verifySet.filter(x=>x.verified);
+      if(!verifiedStations.length)throw new Error('Preverjanje lokacij trenutno ni potrdilo nobene od najpomembnejših črpalk. Poskusi Osveži čez nekaj sekund.');
       const currencies=[...new Set(verifiedStations.map(x=>x.currency))];
-      const fx=await fxTable(currencies);
-      verifiedStations.forEach(x=>{x.priceEur=eurPrice(x,fx)});
+      verifiedStations.forEach(x=>{if(!Number.isFinite(x.priceEur))x.priceEur=eurPrice(x,fx)});
       let rankingPool=verifiedStations.filter(x=>Number.isFinite(x.priceEur));
       if(window.ManniPriceSanity){
         const sane=window.ManniPriceSanity.sanitizeVerifiedCandidates(rankingPool);
@@ -448,24 +428,28 @@
       localStorage.setItem(lastKey,main.id);
       const priceRejected=Math.max(0,verifiedStations.filter(x=>Number.isFinite(x.priceEur)).length-rankingPool.length);
       const borderStatus=picked.border?` · meja ${countryName(picked.border.transition.from.country)} → ${countryName(picked.border.transition.to.country)} upoštevana`:'';
-      ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno · OSM ${verifyMeta.cached?'cache '+verifyMeta.cached:'v živo'}${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''}${borderStatus} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
-    }catch(e){const msg=e.message||'Priporočila ni bilo mogoče izračunati.';ui.main.innerHTML=`<div class="recommend-empty">${esc(msg)}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent=`Priporočilo ni na voljo · ${msg}`}
+      ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno · OSM ${verifyMeta.cached?'cache '+verifyMeta.cached:'v živo'}${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''}${borderStatus} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''} · ${Math.max(1,Math.round((Date.now()-runStarted)/1000))} s`;
+      lastCompletedAt=Date.now();
+    }catch(e){const msg=e.message||'Priporočila ni bilo mogoče izračunati.';ui.main.innerHTML=`<div class="recommend-empty">${esc(msg)}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent=`Priporočilo ni na voljo · ${msg} · ${Math.max(1,Math.round((Date.now()-runStarted)/1000))} s`;lastCompletedAt=Date.now()}
     finally{
       busy=false;
-      if(rerunRequested){rerunRequested=false;setTimeout(refresh,80)}
+      // Requests that arrive during the same calculation are already represented by the latest route/fuel state.
+      // Do not immediately run the entire network pipeline a second time.
+      pendingRefresh=false
     }
   }
 
   ui.panel.addEventListener('click',e=>{const b=e.target.closest('[data-show-rec]');if(!b)return;const s=(window.__manniRecommendations||[]).find(x=>x.id===b.dataset.showRec);if(!s)return;const dlg=b.closest('dialog');if(dlg&&dlg.open)dlg.close();setTimeout(()=>window.dispatchEvent(new CustomEvent('manni:show-station',{detail:s})),120)});
-  // Recommendation must run only AFTER journey/checkpoint recalculation is complete.
-  window.addEventListener('manni:route-opened',()=>{
-    ui.panel.hidden=false;
-    ui.status.textContent='Preračunavam …';
-    setTimeout(refresh,40);
-  });
-  window.addEventListener('manni:route-changed',()=>setTimeout(refresh,1200));
-  window.addEventListener('manni:fuel-changed',()=>setTimeout(refresh,600));
-  window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)setTimeout(refresh,350);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
-  setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)refresh()},2800);
-  console.info('Manni 3.24 Smart Fuel refresh-on-open ready');
+  function scheduleRefresh(delay=250){
+    clearTimeout(refreshTimer);
+    refreshTimer=setTimeout(()=>{refreshTimer=null;refresh()},delay);
+  }
+  // One debounced entry point for all Smart Fuel recalculations.
+  // Opening Pot requests a result, but route validation/fuel/checkpoint updates are coalesced into the same run.
+  window.addEventListener('manni:route-opened',()=>{ui.panel.hidden=false;if(lastCompletedAt&&Date.now()-lastCompletedAt<30000&&window.__manniRecommendations?.length)return;ui.status.textContent='Preračunavam …';scheduleRefresh(300)});
+  window.addEventListener('manni:route-changed',()=>scheduleRefresh(700));
+  window.addEventListener('manni:fuel-changed',()=>scheduleRefresh(450));
+  window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)scheduleRefresh(250);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
+  setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)scheduleRefresh(0)},2800);
+  console.info('Manni 3.28 Smart Fuel performance ready');
 })();
