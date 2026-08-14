@@ -1,4 +1,4 @@
-// Manni's World 3.24 — border-first Smart Fuel + refresh on Pot open
+// Manni's World 3.25 — robust verified Smart Fuel (batched OSM + cached evidence)
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -8,7 +8,9 @@
 
   const API=(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,'');
   const OSRM='https://router.project-osrm.org/route/v1/driving/';
-  const OVERPASS='https://overpass-api.de/api/interpreter';
+  const OVERPASS_ENDPOINTS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+  const VERIFY_CACHE_KEY='manni.smartFuel.osmVerify.v1';
+  const VERIFY_CACHE_DAYS=30;
   const FX_API='https://api.frankfurter.dev/v2/rates';
   const RESERVE_L=10;              // normal reserve
   const RESERVE_FLEX=0.20;          // may use at most 20% of the reserve when it clearly improves the plan
@@ -75,40 +77,72 @@
   }
   function liveFuel(d){const j=d.journey||{},base=Number(d.vehicle?.currentFuelLitres),avg=Number(d.vehicle?.averageConsumption),tracked=Number(j.trackedKm||0);if(Number.isFinite(j.estimatedFuelLitres))return Math.max(0,Number(j.estimatedFuelLitres));if(!Number.isFinite(base))return null;return Number.isFinite(avg)&&avg>0?Math.max(0,base-tracked*avg/100):base}
 
-  // One Overpass request verifies several strongest candidates at once. This avoids the old failure mode
-  // where an aggressive global filter removed whole countries from the map.
-  async function osmEvidence(stations){
+  // Verification is intentionally strict, but requests are split into small batches.
+  // Successful evidence is cached locally so a temporary Overpass outage does not erase Smart Fuel.
+  function verifyCache(){
+    try{return JSON.parse(localStorage.getItem(VERIFY_CACHE_KEY)||'{}')||{}}catch(e){return {}}
+  }
+  function verifyKey(s){return `${Number(s.lat).toFixed(4)},${Number(s.lon).toFixed(4)}|${normText(s.name)}|${normText(s.brand)}`}
+  function cachedEvidence(stations){
+    const c=verifyCache(),out=new Map(),maxAge=VERIFY_CACHE_DAYS*864e5,now=Date.now();
+    for(const s of stations){
+      const x=c[verifyKey(s)];
+      if(x&&Number.isFinite(x.savedAt)&&now-x.savedAt<=maxAge)out.set(s.id,{status:x.status,distanceKm:x.distanceKm??null,score:x.score||0,motorway:x.motorway??null,osm:x.osm||null,cached:true});
+    }
+    return out;
+  }
+  function saveEvidence(stations,map){
+    const c=verifyCache(),now=Date.now();
+    for(const s of stations){const x=map.get(s.id);if(!x||x.status==='unverified')continue;c[verifyKey(s)]={...x,savedAt:now,cached:undefined}}
+    try{localStorage.setItem(VERIFY_CACHE_KEY,JSON.stringify(c))}catch(e){}
+  }
+  async function queryEvidenceBatch(stations){
     const out=new Map(stations.map(s=>[s.id,{status:'unverified',distanceKm:null,score:0,motorway:null,osm:null}]));
-    if(!stations.length)return out;
+    if(!stations.length)return {out,ok:true};
     const clauses=[];
-    stations.forEach(s=>{
+    for(const s of stations){
       clauses.push(`nwr(around:${VERIFY_RADIUS_M},${s.lat},${s.lon})[amenity=fuel];`);
       clauses.push(`nwr(around:550,${s.lat},${s.lon})[highway=services];`);
       clauses.push(`nwr(around:550,${s.lat},${s.lon})[highway=rest_area];`);
-    });
-    const q=`[out:json][timeout:18];(${clauses.join('')});out center tags;`;
-    const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),15000);
-    try{
-      const r=await fetch(OVERPASS+'?data='+encodeURIComponent(q),{signal:ctl.signal,headers:{Accept:'application/json'}});if(!r.ok)throw 0;
-      const j=await r.json();
-      const fuels=[],services=[];
-      for(const e of j.elements||[]){const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const tags=e.tags||{},x={lat,lon,tags};if(tags.amenity==='fuel')fuels.push(x);if(tags.highway==='services'||tags.highway==='rest_area')services.push(x)}
-      for(const s of stations){
-        let best=null;
-        for(const f of fuels){const d=hav(s,f),score=Math.max(nameScore(s.name,f.tags.name),nameScore(s.brand,f.tags.brand),nameScore(s.name,f.tags.brand),nameScore(s.brand,f.tags.name));if(!best||d<best.d||(Math.abs(d-best.d)<.03&&score>best.score))best={f,d,score}}
-        const motorway=services.some(x=>hav(s,x)<=.55);
-        if(!best){out.set(s.id,{status:'mismatch',distanceKm:null,score:0,motorway,osm:null});continue}
-        // Conservative verification for automatic recommendations:
-        // very close geometry is enough; otherwise require a name/brand agreement as well.
-        const verified=(best.d<=.055)||(best.d<=.18&&best.score>=.25);
-        const status=verified?'verified':(best.d<=.30?'unverified':'mismatch');
-        out.set(s.id,{status,distanceKm:best.d,score:best.score,motorway,osm:best.f});
-      }
-      return out;
-    }catch(e){
-      // If OSM cannot be reached, do NOT silently trust candidates for automatic navigation.
-      return out;
-    }finally{clearTimeout(tm)}
+    }
+    const q=`[out:json][timeout:12];(${clauses.join('')});out center tags;`;
+    let payload=null;
+    for(const endpoint of OVERPASS_ENDPOINTS){
+      const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),12000);
+      try{
+        const r=await fetch(endpoint+'?data='+encodeURIComponent(q),{signal:ctl.signal,headers:{Accept:'application/json'}});
+        if(!r.ok)throw new Error('overpass');
+        payload=await r.json();clearTimeout(tm);break;
+      }catch(e){clearTimeout(tm)}
+    }
+    if(!payload)return {out,ok:false};
+    const fuels=[],services=[];
+    for(const e of payload.elements||[]){const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const tags=e.tags||{},x={lat,lon,tags};if(tags.amenity==='fuel')fuels.push(x);if(tags.highway==='services'||tags.highway==='rest_area')services.push(x)}
+    for(const s of stations){
+      let best=null;
+      for(const f of fuels){const d=hav(s,f),score=Math.max(nameScore(s.name,f.tags.name),nameScore(s.brand,f.tags.brand),nameScore(s.name,f.tags.brand),nameScore(s.brand,f.tags.name));if(!best||d<best.d||(Math.abs(d-best.d)<.03&&score>best.score))best={f,d,score}}
+      const motorway=services.some(x=>hav(s,x)<=.55);
+      if(!best){out.set(s.id,{status:'mismatch',distanceKm:null,score:0,motorway,osm:null});continue}
+      const verified=(best.d<=.055)||(best.d<=.18&&best.score>=.25);
+      const status=verified?'verified':(best.d<=.30?'unverified':'mismatch');
+      out.set(s.id,{status,distanceKm:best.d,score:best.score,motorway,osm:best.f});
+    }
+    return {out,ok:true};
+  }
+  async function osmEvidence(stations){
+    const final=new Map(stations.map(s=>[s.id,{status:'unverified',distanceKm:null,score:0,motorway:null,osm:null}]));
+    if(!stations.length)return final;
+    const cache=cachedEvidence(stations);
+    for(const [id,x] of cache)final.set(id,x);
+    const need=stations.filter(s=>!cache.has(s.id));
+    let liveOk=0;
+    // Small batches are much more reliable on mobile than one giant Overpass request.
+    for(let i=0;i<need.length;i+=6){
+      const batch=need.slice(i,i+6),res=await queryEvidenceBatch(batch);
+      if(res.ok){liveOk++;for(const [id,x] of res.out)final.set(id,x);saveEvidence(batch,res.out)}
+    }
+    final._meta={cached:cache.size,liveBatches:liveOk,totalBatches:Math.ceil(need.length/6)};
+    return final;
   }
 
 
@@ -323,10 +357,11 @@
       const verifySet=dedupe([...spread,...late]).sort((a,b)=>a.along-b.along).slice(0,30);
       ui.status.textContent='Preverjam, ali priporočene lokacije res obstajajo …';
       const evidence=await osmEvidence(verifySet);
+      const verifyMeta=evidence._meta||{cached:0,liveBatches:0,totalBatches:0};
       verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0});
 
       const verifiedCount=verifySet.filter(x=>x.verified).length;
-      if(!verifiedCount)throw new Error('V varnem dosegu ni dovolj zanesljivo preverjene črpalke za avtomatsko priporočilo. Postaje lahko še vedno pregledaš na zemljevidu.');
+      if(!verifiedCount){const extra=verifyMeta.totalBatches&&verifyMeta.liveBatches===0&&verifyMeta.cached===0?' Preverjanje OSM trenutno ni odgovorilo; poskusi Osveži čez nekaj sekund.':'';throw new Error('V varnem dosegu ni dovolj zanesljivo preverjene črpalke za avtomatsko priporočilo.'+extra)}
 
       const verifiedStations=verifySet.filter(x=>x.verified);
       const currencies=[...new Set(verifiedStations.map(x=>x.currency))];
@@ -375,8 +410,8 @@
       localStorage.setItem(lastKey,main.id);
       const priceRejected=Math.max(0,verifiedStations.filter(x=>Number.isFinite(x.priceEur)).length-rankingPool.length);
       const borderStatus=picked.border?` · meja ${countryName(picked.border.transition.from.country)} → ${countryName(picked.border.transition.to.country)} upoštevana`:'';
-      ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''}${borderStatus} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
-    }catch(e){ui.main.innerHTML=`<div class="recommend-empty">${esc(e.message||'Priporočila ni bilo mogoče izračunati.')}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent='Priporočilo ni na voljo.'}
+      ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno · OSM ${verifyMeta.cached?'cache '+verifyMeta.cached:'v živo'}${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''}${borderStatus} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
+    }catch(e){const msg=e.message||'Priporočila ni bilo mogoče izračunati.';ui.main.innerHTML=`<div class="recommend-empty">${esc(msg)}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent=`Priporočilo ni na voljo · ${msg}`}
     finally{
       busy=false;
       if(rerunRequested){rerunRequested=false;setTimeout(refresh,80)}

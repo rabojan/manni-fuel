@@ -1,9 +1,7 @@
-# Manni Fuel 3.24 – route-open refresh beta
+# Manni Fuel 3.25 — Verification Reliability Beta
 
-Majhen stabilnostni popravek na osnovi 3.23:
-
-- ob vsakem odprtju okna **Pot** se Pametno tankanje samodejno ponovno preveri,
-- med izračunom je vedno viden status **Preračunavam …**,
-- če je prejšnji izračun še v teku, se zahteva za nov izračun postavi v vrsto in se ponovi takoj po zaključku,
-- ob napaki ostane viden konkreten razlog iz Smart Fuel modula, namesto praznega razdelka,
-- Border Strategy in vsi izračuni iz 3.23 ostajajo nespremenjeni.
+- Smart Fuel OSM verification is split into small batches.
+- Verified station evidence is cached locally for 30 days.
+- A temporary Overpass outage no longer erases previously verified recommendations.
+- Exact failure reason is shown when recommendation is unavailable.
+- All 3.24 routing, border strategy, price sanity and UI behavior retained.
