@@ -1,13 +1,6 @@
-# Manni Fuel 3.28 — Smart Fuel Performance beta
+# Manni Fuel 3.29 — Route-country border fix
 
-- hitrejši Smart Fuel pipeline
-- največ 10 vzorčnih točk po dosegljivi poti
-- omejena vzporednost pri nalaganju postaj
-- trdi timeouti za routing, Worker, FX in OSM
-- Overpass rezervna strežnika se vprašata vzporedno
-- največ 9 kandidatov za OSM verifikacijo
-- odpiranje Pot v 30 s ne sproži celotnega izračuna znova
-- brez avtomatskega dvojnega reruna istega izračuna
-- status pokaže čas izračuna v sekundah
-
-Logika Smart Fuel iz 3.27 ostaja enaka.
+- Border Strategy follows only countries from the confirmed route instead of nearby-country fuel stations.
+- Current country is inferred only near the start; subsequent country anchors come from confirmed route points.
+- Very early “Prejšnja možnost” is hidden when the tank is still too full for a meaningful refuel (less than ~30% tank capacity can be added).
+- Smart Fuel performance pipeline, price sanity, verification cache, reserve logic and map behavior remain unchanged from 3.28.

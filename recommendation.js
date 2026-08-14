@@ -176,6 +176,16 @@
   };
   function median(v){const a=v.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
   function countryName(c){return COUNTRY_NAMES[String(c||'').toUpperCase()]||String(c||'').toUpperCase()}
+  function intendedCountrySequence(route,stations){
+    const out=[];
+    const add=c=>{c=String(c||'').toUpperCase();if(c&&(!out.length||out[out.length-1]!==c))out.push(c)};
+    // Infer only the current country from stations very close to the start. All later anchors come from
+    // user-confirmed route points, so a nearby country that is not on the chosen route cannot hijack border logic.
+    const near=[...stations].filter(x=>x.country&&x.along>=0&&x.along<=80).sort((a,b)=>a.along-b.along);
+    if(near.length)add(near[0].country);
+    for(const pt of [...(route?.viaPoints||[]),route?.destinationPoint].filter(Boolean))add(pt.countryCode);
+    return out;
+  }
   function countryGroups(stations){
     const m=new Map();
     for(const s of stations){
@@ -195,13 +205,17 @@
     }
     return groups.sort((a,b)=>a.minAlong-b.minAlong);
   }
-  function borderTransitions(stations,extendedKm){
-    const groups=countryGroups(stations).filter(g=>g.minAlong<=extendedKm+80);
+  function borderTransitions(stations,extendedKm,countrySequence){
+    const all=countryGroups(stations).filter(g=>g.minAlong<=extendedKm+80);
+    const byCountry=new Map(all.map(g=>[g.country,g]));
+    // Border strategy must follow the user's confirmed route countries. This prevents nearby countries
+    // (for example Hungary near Vienna) from being treated as an actual border crossing.
+    const ordered=(countrySequence||[]).map(c=>byCountry.get(String(c||'').toUpperCase())).filter(Boolean);
+    const groups=ordered.length>=2?ordered:all;
     const out=[];
     for(let i=0;i<groups.length-1;i++){
       const a=groups[i],b=groups[i+1];
       if(a.country===b.country)continue;
-      // If groups overlap around the border, use the first station of the next country; otherwise midpoint the gap.
       const borderKm=a.maxAlong<b.minAlong?(a.maxAlong+b.minAlong)/2:b.minAlong;
       if(borderKm<0||borderKm>extendedKm+80)continue;
       out.push({from:a,to:b,borderKm,diff:b.medianEur-a.medianEur,absDiff:Math.abs(b.medianEur-a.medianEur)});
@@ -210,7 +224,7 @@
   }
   function borderStrategy(stations,ctx){
     if(!Number.isFinite(ctx.tank)||ctx.tank<=0)return null;
-    const transitions=borderTransitions(stations,ctx.extendedKm);
+    const transitions=borderTransitions(stations,ctx.extendedKm,ctx.countrySequence);
     for(const t of transitions){
       const rel=t.absDiff/Math.max(.01,Math.min(t.from.medianEur,t.to.medianEur));
       if(t.absDiff<BORDER_MIN_DIFF_EUR&&rel<BORDER_MIN_DIFF_FRACTION)continue;
@@ -265,8 +279,13 @@
   function chooseAlternatives(verified,main,ctx){
     // Alternatives have explicit roles. Never relabel a later station as an earlier one (or vice versa).
     // If a meaningful station does not exist on one side of the main recommendation, show fewer cards.
-    const earlier=verified.filter(x=>x.id!==main.id&&x.along<=main.along-ALT_MIN_GAP_KM&&x.along>=Math.max(0,main.along-300));
+    let earlier=verified.filter(x=>x.id!==main.id&&x.along<=main.along-ALT_MIN_GAP_KM&&x.along>=Math.max(0,main.along-300));
     const later=verified.filter(x=>x.id!==main.id&&x.along>=main.along+ALT_MIN_GAP_KM&&x.along<=ctx.extendedKm);
+    // Do not show a token "previous option" while the tank is still almost full. An earlier stop is
+    // useful only when a meaningful amount can actually be added (or tank size is unknown).
+    if(Number.isFinite(ctx.tank)&&ctx.tank>0){
+      earlier=earlier.filter(x=>plannedFillLitres(ctx.tank,ctx.fuel,ctx.avg,x.along)>=ctx.tank*0.30);
+    }
     let earlierPick=null,laterPick=null;
     if(earlier.length){
       // Prefer a useful later part of the earlier window, then price/off-route score.
@@ -392,7 +411,8 @@
         if(sane.hidden?.length)console.info('Smart Fuel: izločene sumljive cene',sane.hidden.map(x=>({name:x.name,price:x.price,currency:x.currency,deviation:x.priceDeviation})));
       }
       const missingFx=currencies.filter(c=>c!=='EUR'&&!Number.isFinite(fx[c]));
-      const picked=pickRecommendations(rankingPool,{tank,fuel,avg,safeKm,extendedKm});
+      const countrySequence=intendedCountrySequence(route,prePool);
+      const picked=pickRecommendations(rankingPool,{tank,fuel,avg,safeKm,extendedKm,countrySequence});
       if(!picked.main)throw new Error('Nisem našel dovolj zanesljive črpalke za priporočilo.');
       const main=picked.main,alts=picked.alts;
       window.__manniRecommendations=[main,...alts];
@@ -451,5 +471,5 @@
   window.addEventListener('manni:fuel-changed',()=>scheduleRefresh(450));
   window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)scheduleRefresh(250);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
   setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)scheduleRefresh(0)},2800);
-  console.info('Manni 3.28 Smart Fuel performance ready');
+  console.info('Manni 3.29 route-country border fix ready');
 })();
