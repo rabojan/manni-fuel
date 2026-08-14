@@ -21,9 +21,9 @@ Main map UI cleanup: removed the 'Najnižja cena' display and the 'Najcenejše /
 
 3.38: clean rebuild zgornje vozne vrstice iz stabilne 3.36 osnove. Cilj, Osveži in Lokacija so v eni vrstici; vsi gumbi so klikabilni. Splash uporablja 100dvh.
 
-3.39 PWA/Home Screen cache fix:
-- all local CSS/JS/manifest/icon URLs use the same 3.39 build version,
-- Home Screen standalone mode detects a new build and performs one fresh reload,
-- stale service workers are unregistered,
-- Cache Storage is cleared,
-- no Smart Fuel, routing, map, fuel, trip or UI-layout logic was changed from 3.38.
+
+3.40 Home Screen launch fix:
+- manifest start_url je ./?v=3400
+- vsi lokalni CSS/JS in ikone imajo enotno verzijo 3.40/3400
+- standalone zagon prisilno normalizira URL na ?v=3400 pred nalaganjem aplikacije
+- izhaja iz stabilne 3.38 postavitve; Smart Fuel in izračuni niso spreminjani.
