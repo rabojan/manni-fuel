@@ -1,4 +1,4 @@
-// Manni's World 3.25 — robust verified Smart Fuel (batched OSM + cached evidence)
+// Manni's World 3.26 — resilient verification retry (positive cache only)
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -93,7 +93,7 @@
   }
   function saveEvidence(stations,map){
     const c=verifyCache(),now=Date.now();
-    for(const s of stations){const x=map.get(s.id);if(!x||x.status==='unverified')continue;c[verifyKey(s)]={...x,savedAt:now,cached:undefined}}
+    for(const s of stations){const x=map.get(s.id);if(!x||x.status!=='verified')continue;c[verifyKey(s)]={...x,savedAt:now,cached:undefined}}
     try{localStorage.setItem(VERIFY_CACHE_KEY,JSON.stringify(c))}catch(e){}
   }
   async function queryEvidenceBatch(stations){
@@ -118,6 +118,9 @@
     if(!payload)return {out,ok:false};
     const fuels=[],services=[];
     for(const e of payload.elements||[]){const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const tags=e.tags||{},x={lat,lon,tags};if(tags.amenity==='fuel')fuels.push(x);if(tags.highway==='services'||tags.highway==='rest_area')services.push(x)}
+    // An HTTP 200 with no nearby fuel objects is not strong enough evidence that all candidates are false.
+    // Treat the batch as indeterminate so we can retry the important candidates individually.
+    if(!fuels.length)return {out,ok:false};
     for(const s of stations){
       let best=null;
       for(const f of fuels){const d=hav(s,f),score=Math.max(nameScore(s.name,f.tags.name),nameScore(s.brand,f.tags.brand),nameScore(s.name,f.tags.brand),nameScore(s.brand,f.tags.name));if(!best||d<best.d||(Math.abs(d-best.d)<.03&&score>best.score))best={f,d,score}}
@@ -143,6 +146,35 @@
     }
     final._meta={cached:cache.size,liveBatches:liveOk,totalBatches:Math.ceil(need.length/6)};
     return final;
+  }
+
+
+  async function retryImportantStations(stations,existing){
+    // Retry a small shortlist one-by-one with a wider radius. This avoids a temporary/partial
+    // Overpass batch response removing Smart Fuel entirely.
+    const out=new Map(existing||[]);
+    const candidates=stations.filter(s=>(out.get(s.id)?.status||'unverified')!=='verified').slice(0,10);
+    for(const s of candidates){
+      const q=`[out:json][timeout:10];(nwr(around:450,${s.lat},${s.lon})[amenity=fuel];nwr(around:700,${s.lat},${s.lon})[highway=services];nwr(around:700,${s.lat},${s.lon})[highway=rest_area];);out center tags;`;
+      let payload=null;
+      for(const endpoint of OVERPASS_ENDPOINTS){
+        const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),10000);
+        try{const r=await fetch(endpoint+'?data='+encodeURIComponent(q),{signal:ctl.signal,headers:{Accept:'application/json'}});if(!r.ok)throw new Error('overpass');payload=await r.json();clearTimeout(tm);break}catch(e){clearTimeout(tm)}
+      }
+      if(!payload)continue;
+      const fuels=[],services=[];
+      for(const e of payload.elements||[]){const lat=Number(e.lat??e.center?.lat),lon=Number(e.lon??e.center?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const tags=e.tags||{},x={lat,lon,tags};if(tags.amenity==='fuel')fuels.push(x);if(tags.highway==='services'||tags.highway==='rest_area')services.push(x)}
+      if(!fuels.length)continue;
+      let best=null;
+      for(const f of fuels){const d=hav(s,f),score=Math.max(nameScore(s.name,f.tags.name),nameScore(s.brand,f.tags.brand),nameScore(s.name,f.tags.brand),nameScore(s.brand,f.tags.name));if(!best||d<best.d||(Math.abs(d-best.d)<.03&&score>best.score))best={f,d,score}}
+      const motorway=services.some(x=>hav(s,x)<=.7);
+      if(best){
+        // Wider retry threshold, but still require a plausible physical fuel POI nearby.
+        const verified=(best.d<=.12)||(best.d<=.30&&best.score>=.25);
+        if(verified){const ev={status:'verified',distanceKm:best.d,score:best.score,motorway,osm:best.f};out.set(s.id,ev);saveEvidence([s],new Map([[s.id,ev]]))}
+      }
+    }
+    return out;
   }
 
 
@@ -356,12 +388,18 @@
       const late=[...stations].filter(x=>x.along>=normalStart).sort((a,b)=>b.along-a.along).slice(0,8);
       const verifySet=dedupe([...spread,...late]).sort((a,b)=>a.along-b.along).slice(0,30);
       ui.status.textContent='Preverjam, ali priporočene lokacije res obstajajo …';
-      const evidence=await osmEvidence(verifySet);
+      let evidence=await osmEvidence(verifySet);
       const verifyMeta=evidence._meta||{cached:0,liveBatches:0,totalBatches:0};
       verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0});
 
-      const verifiedCount=verifySet.filter(x=>x.verified).length;
-      if(!verifiedCount){const extra=verifyMeta.totalBatches&&verifyMeta.liveBatches===0&&verifyMeta.cached===0?' Preverjanje OSM trenutno ni odgovorilo; poskusi Osveži čez nekaj sekund.':'';throw new Error('V varnem dosegu ni dovolj zanesljivo preverjene črpalke za avtomatsko priporočilo.'+extra)}
+      let verifiedCount=verifySet.filter(x=>x.verified).length;
+      if(!verifiedCount){
+        ui.status.textContent='Prvi pregled ni potrdil dovolj lokacij — preverjam najboljše kandidate še enkrat …';
+        evidence=await retryImportantStations(verifySet,evidence);
+        verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0});
+        verifiedCount=verifySet.filter(x=>x.verified).length;
+      }
+      if(!verifiedCount){const extra=verifyMeta.totalBatches&&verifyMeta.liveBatches===0&&verifyMeta.cached===0?' OSM trenutno ni vrnil dovolj podatkov; poskusi Osveži čez nekaj sekund.':'';throw new Error('V dosegu sem našel črpalke, vendar trenutno nobene ne morem dovolj zanesljivo potrditi za avtomatsko priporočilo.'+extra)}
 
       const verifiedStations=verifySet.filter(x=>x.verified);
       const currencies=[...new Set(verifiedStations.map(x=>x.currency))];

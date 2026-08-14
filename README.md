@@ -1,4 +1,4 @@
-# Manni Fuel 3.25 — Verification Reliability Beta
+# Manni Fuel 3.26 — Verification Reliability Beta
 
 - Smart Fuel OSM verification is split into small batches.
 - Verified station evidence is cached locally for 30 days.
