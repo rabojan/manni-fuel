@@ -1,4 +1,4 @@
-// Manni's World 3.23 — border-first Smart Fuel strategy
+// Manni's World 3.24 — border-first Smart Fuel + refresh on Pot open
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -30,6 +30,7 @@
   const BORDER_MIN_SAVING_EUR=5;        // estimated real saving required for an early border stop
   const VERIFY_RADIUS_M=300;
   let busy=false;
+  let rerunRequested=false;
 
   const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const rad=x=>x*Math.PI/180;
@@ -287,7 +288,8 @@
   }
 
   async function refresh(){
-    if(busy)return;busy=true;ui.panel.hidden=false;ui.status.textContent='Iščem in preverjam črpalke ob poti …';ui.main.innerHTML='';ui.alts.innerHTML='';ui.reason.textContent='';
+    if(busy){rerunRequested=true;ui.panel.hidden=false;ui.status.textContent='Preračunavam …';return;}
+    busy=true;rerunRequested=false;ui.panel.hidden=false;ui.status.textContent='Preračunavam …';ui.main.innerHTML='<div class="recommend-empty">Preverjam pot, doseg, cene in črpalke …</div>';ui.alts.innerHTML='';ui.reason.textContent='';
     try{
       const d=window.ManniStorage.get(),route=d.route||{},avg=Number(d.vehicle?.averageConsumption),fuel=liveFuel(d),tank=Number(d.vehicle?.tankLitres),reserve=RESERVE_L;
       if(!route.destination)throw new Error('Najprej nastavi cilj poti.');
@@ -375,14 +377,22 @@
       const borderStatus=picked.border?` · meja ${countryName(picked.border.transition.from.country)} → ${countryName(picked.border.transition.to.country)} upoštevana`:'';
       ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''}${borderStatus} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
     }catch(e){ui.main.innerHTML=`<div class="recommend-empty">${esc(e.message||'Priporočila ni bilo mogoče izračunati.')}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent='Priporočilo ni na voljo.'}
-    finally{busy=false}
+    finally{
+      busy=false;
+      if(rerunRequested){rerunRequested=false;setTimeout(refresh,80)}
+    }
   }
 
   ui.panel.addEventListener('click',e=>{const b=e.target.closest('[data-show-rec]');if(!b)return;const s=(window.__manniRecommendations||[]).find(x=>x.id===b.dataset.showRec);if(!s)return;const dlg=b.closest('dialog');if(dlg&&dlg.open)dlg.close();setTimeout(()=>window.dispatchEvent(new CustomEvent('manni:show-station',{detail:s})),120)});
   // Recommendation must run only AFTER journey/checkpoint recalculation is complete.
+  window.addEventListener('manni:route-opened',()=>{
+    ui.panel.hidden=false;
+    ui.status.textContent='Preračunavam …';
+    setTimeout(refresh,40);
+  });
   window.addEventListener('manni:route-changed',()=>setTimeout(refresh,1200));
   window.addEventListener('manni:fuel-changed',()=>setTimeout(refresh,600));
   window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)setTimeout(refresh,350);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
   setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)refresh()},2800);
-  console.info('Manni 3.23 border-first Smart Fuel ready');
+  console.info('Manni 3.24 Smart Fuel refresh-on-open ready');
 })();
