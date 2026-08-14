@@ -247,11 +247,12 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.21 — alternatives + map focus fix');
+console.info('Manni Fuel 3.23 — border strategy beta');
 
 // 3.11: allow recommendation module to show a remote station without coupling modules.
 window.addEventListener('manni:show-station',async e=>{
-  const s=e.detail;if(!s||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return;
+  const s=e.detail;
+  setTimeout(()=>state.map.invalidateSize(),40);if(!s||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return;
   const lat=Number(s.lat),lon=Number(s.lon);
   state.programmaticUntil=Date.now()+1800;
   state.map.setView([lat,lon],14,{animate:true});

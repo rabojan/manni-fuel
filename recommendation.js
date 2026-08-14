@@ -1,4 +1,4 @@
-// Manni's World 3.21 — meaningful alternatives + map focus fix
+// Manni's World 3.23 — border-first Smart Fuel strategy
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -23,6 +23,11 @@
   const ALT_MIN_GAP_KM=60;             // alternatives must be meaningfully separated along route
   const EXCEPTIONAL_DIFF_EUR=0.15;    // exceptional opportunity may override the half-tank rule
   const EXCEPTIONAL_SAVING_EUR=10;
+  const BORDER_MIN_DIFF_EUR=0.06;       // only react to a meaningful cross-border price gap
+  const BORDER_MIN_DIFF_FRACTION=0.04;  // or at least 4% between comparable country medians
+  const BORDER_ZONE_KM=180;             // stations considered around a border decision
+  const BORDER_MIN_FILL_FRACTION=0.35;  // do not stop very early just because a border is cheaper
+  const BORDER_MIN_SAVING_EUR=5;        // estimated real saving required for an early border stop
   const VERIFY_RADIUS_M=300;
   let busy=false;
 
@@ -105,6 +110,77 @@
     }finally{clearTimeout(tm)}
   }
 
+
+  const COUNTRY_NAMES={
+    SI:'Slovenija',AT:'Avstrija',CZ:'Češka',PL:'Poljska',SK:'Slovaška',HU:'Madžarska',HR:'Hrvaška',
+    IT:'Italija',DE:'Nemčija',FR:'Francija',CH:'Švica',NL:'Nizozemska',BE:'Belgija',LU:'Luksemburg',
+    DK:'Danska',SE:'Švedska',NO:'Norveška',FI:'Finska',EE:'Estonija',LV:'Latvija',LT:'Litva',
+    RO:'Romunija',BG:'Bolgarija',RS:'Srbija',BA:'BiH',GR:'Grčija',ES:'Španija',PT:'Portugalska'
+  };
+  function median(v){const a=v.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
+  function countryName(c){return COUNTRY_NAMES[String(c||'').toUpperCase()]||String(c||'').toUpperCase()}
+  function countryGroups(stations){
+    const m=new Map();
+    for(const s of stations){
+      const c=String(s.country||'').toUpperCase();
+      if(!c)continue;
+      if(!m.has(c))m.set(c,[]);
+      m.get(c).push(s);
+    }
+    const groups=[];
+    for(const [country,items] of m){
+      const sorted=[...items].sort((a,b)=>a.along-b.along);
+      const off=sorted.filter(x=>x.motorway===false&&Number.isFinite(x.priceEur));
+      const priced=(off.length>=2?off:sorted.filter(x=>Number.isFinite(x.priceEur)));
+      const med=median(priced.map(x=>x.priceEur));
+      if(!Number.isFinite(med)||!sorted.length)continue;
+      groups.push({country,items:sorted,minAlong:sorted[0].along,maxAlong:sorted[sorted.length-1].along,medianEur:med,peerCount:priced.length});
+    }
+    return groups.sort((a,b)=>a.minAlong-b.minAlong);
+  }
+  function borderTransitions(stations,extendedKm){
+    const groups=countryGroups(stations).filter(g=>g.minAlong<=extendedKm+80);
+    const out=[];
+    for(let i=0;i<groups.length-1;i++){
+      const a=groups[i],b=groups[i+1];
+      if(a.country===b.country)continue;
+      // If groups overlap around the border, use the first station of the next country; otherwise midpoint the gap.
+      const borderKm=a.maxAlong<b.minAlong?(a.maxAlong+b.minAlong)/2:b.minAlong;
+      if(borderKm<0||borderKm>extendedKm+80)continue;
+      out.push({from:a,to:b,borderKm,diff:b.medianEur-a.medianEur,absDiff:Math.abs(b.medianEur-a.medianEur)});
+    }
+    return out;
+  }
+  function borderStrategy(stations,ctx){
+    if(!Number.isFinite(ctx.tank)||ctx.tank<=0)return null;
+    const transitions=borderTransitions(stations,ctx.extendedKm);
+    for(const t of transitions){
+      const rel=t.absDiff/Math.max(.01,Math.min(t.from.medianEur,t.to.medianEur));
+      if(t.absDiff<BORDER_MIN_DIFF_EUR&&rel<BORDER_MIN_DIFF_FRACTION)continue;
+      const cheaperBefore=t.diff>0;
+      let pool;
+      if(cheaperBefore){
+        pool=stations.filter(x=>x.country===t.from.country&&x.along<=Math.min(t.borderKm,ctx.extendedKm)&&x.along>=Math.max(0,t.borderKm-BORDER_ZONE_KM));
+      }else{
+        pool=stations.filter(x=>x.country===t.to.country&&x.along>=Math.max(0,t.borderKm)&&x.along<=Math.min(ctx.extendedKm,t.borderKm+BORDER_ZONE_KM));
+      }
+      pool=pool.filter(x=>x.verified&&Number.isFinite(x.priceEur));
+      if(!pool.length)continue;
+      // Border logic must not force a silly top-up while the tank is still nearly full.
+      const viable=pool.filter(x=>{
+        const fill=plannedFillLitres(ctx.tank,ctx.fuel,ctx.avg,x.along);
+        const saving=t.absDiff*fill;
+        const enoughFill=fill>=ctx.tank*BORDER_MIN_FILL_FRACTION;
+        return enoughFill||saving>=BORDER_MIN_SAVING_EUR;
+      });
+      if(!viable.length)continue;
+      const main=bestByScore(viable);
+      if(!main)continue;
+      return {main,transition:t,direction:cheaperBefore?'before':'after',pool:viable};
+    }
+    return null;
+  }
+
   function fuelAtArrival(current,avg,along){return Math.max(0,current-along*avg/100)}
   function plannedFillLitres(tank,current,avg,along){const arrival=fuelAtArrival(current,avg,along);return Number.isFinite(tank)&&tank>0?Math.max(0,tank-arrival):Math.max(0,current-arrival)}
   function baseScore(x){
@@ -155,6 +231,13 @@
     if(!verified.length)return {main:null,alts:[],reasonType:'none'};
     const safeKm=ctx.safeKm,extendedKm=ctx.extendedKm;
     const normalStart=Math.max(0,safeKm-NORMAL_ZONE_KM);
+
+    // 0) BORDER-FIRST strategy: compare comparable verified prices in the country before/after a border.
+    // Only if the price gap is meaningful and the real amount we can fill makes the stop worthwhile.
+    const border=borderStrategy(verified,ctx);
+    if(border){
+      return {main:border.main,alts:chooseAlternatives(verified,border.main,ctx),reasonType:border.direction==='before'?'border-before':'border-after',border};
+    }
 
     // 1) Early economical stop: allowed only if <= half tank remains, unless saving is exceptional.
     const early=verified.filter(x=>x.along<normalStart&&x.along<=safeKm)
@@ -263,7 +346,16 @@
 
       const arrival=fuelAtArrival(fuel,avg,main.along),marginL=arrival-reserve;
       let reason='';
-      if(picked.reasonType==='early'&&picked.opportunity){
+      if((picked.reasonType==='border-before'||picked.reasonType==='border-after')&&picked.border){
+        const t=picked.border.transition;
+        const from=countryName(t.from.country),to=countryName(t.to.country);
+        const gap=slNum(t.absDiff,2);
+        if(picked.reasonType==='border-before'){
+          reason=`Strategija pred mejo: preverjene primerljive črpalke v ${from} so pred vstopom v ${to} trenutno približno ${gap} €/l cenejše. Zato Manni najprej izbere smiselno preverjeno črpalko pred mejo, če lahko natočiš dovolj goriva in ostaneš znotraj varnega dosega.`;
+        }else{
+          reason=`Strategija po meji: preverjene primerljive črpalke v ${to} so trenutno približno ${gap} €/l cenejše kot v ${from}. Ker imaš dovolj dosega, Manni priporoča, da z glavnim tankanjem počakaš do ${to}.`;
+        }
+      }else if(picked.reasonType==='early'&&picked.opportunity){
         reason=`Zgodnejše ekonomično tankanje: ob prihodu boš lahko natočil približno ${slL(picked.opportunity.fill)}; ocenjeni prihranek je približno ${slEur(picked.opportunity.saving)} (${slNum(picked.opportunity.diff,2)} €/l manj kot najcenejša preverjena možnost v naslednjih približno ${EARLY_LOOKAHEAD_KM} km).${picked.opportunity.exceptional?' Gre za izjemno cenovno priložnost, zato je priporočilo dovoljeno tudi nekoliko prej.':''}`;
       }else if(picked.reasonType==='reserve-flex'){
         reason=`Naslednja smiselna preverjena črpalka je malo za normalno 10-litrsko rezervo. Manni uporabi del rezerve, vendar največ 20 %: ob prihodu ostane približno ${slL(arrival)}. Absolutna meja je ${slL(ABSOLUTE_MIN_L)}.`;
@@ -280,16 +372,17 @@
       const changed=previous&&previous!==main.id;
       localStorage.setItem(lastKey,main.id);
       const priceRejected=Math.max(0,verifiedStations.filter(x=>Number.isFinite(x.priceEur)).length-rankingPool.length);
-      ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
+      const borderStatus=picked.border?` · meja ${countryName(picked.border.transition.from.country)} → ${countryName(picked.border.transition.to.country)} upoštevana`:'';
+      ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''}${borderStatus} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
     }catch(e){ui.main.innerHTML=`<div class="recommend-empty">${esc(e.message||'Priporočila ni bilo mogoče izračunati.')}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent='Priporočilo ni na voljo.'}
     finally{busy=false}
   }
 
-  ui.panel.addEventListener('click',e=>{const b=e.target.closest('[data-show-rec]');if(!b)return;const s=(window.__manniRecommendations||[]).find(x=>x.id===b.dataset.showRec);if(s)window.dispatchEvent(new CustomEvent('manni:show-station',{detail:s}))});
+  ui.panel.addEventListener('click',e=>{const b=e.target.closest('[data-show-rec]');if(!b)return;const s=(window.__manniRecommendations||[]).find(x=>x.id===b.dataset.showRec);if(!s)return;const dlg=b.closest('dialog');if(dlg&&dlg.open)dlg.close();setTimeout(()=>window.dispatchEvent(new CustomEvent('manni:show-station',{detail:s})),120)});
   // Recommendation must run only AFTER journey/checkpoint recalculation is complete.
   window.addEventListener('manni:route-changed',()=>setTimeout(refresh,1200));
   window.addEventListener('manni:fuel-changed',()=>setTimeout(refresh,600));
   window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)setTimeout(refresh,350);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
   setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)refresh()},2800);
-  console.info('Manni 3.21 alternatives + map focus fix ready');
+  console.info('Manni 3.23 border-first Smart Fuel ready');
 })();

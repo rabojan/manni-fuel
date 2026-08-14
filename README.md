@@ -1,11 +1,17 @@
-# Manni Fuel 3.21 — Alternatives + map focus fix beta
+# Manni Fuel 3.23 — Border Strategy beta
 
-Built on 3.20. No map, trip, fuel-log, route, GPS-checkpoint, price-sanity or Smart Fuel core architecture was removed.
+Ta verzija nadgrajuje 3.22 in ohranja vse prejšnje funkcije.
 
-## Fixed in 3.21
+## Novo
+- Smart Fuel najprej pregleda prehode med državami na trenutnem dosegljivem delu poti.
+- Primerja samo preverjene in cenovno verodostojne kandidate, cene pa normalizira v EUR.
+- Za primerjavo med državami daje prednost preverjenim črpalkam izven avtoceste; če jih je premalo, uporabi vse preverjene v državi.
+- Če je naslednja država smiselno cenejša in je dosegljiva, priporoči tankanje po meji.
+- Če je trenutna država smiselno cenejša, najprej išče smiselno tankanje pred mejo.
+- Mejna strategija se ne aktivira za majhne razlike: prag je približno 0,06 EUR/l oziroma 4 %.
+- Zgodnji postanek zaradi meje se predlaga samo, če lahko natočiš vsaj približno 35 % rezervoarja ali je ocenjeni realni prihranek vsaj 5 EUR.
+- Šele po odločitvi pred/po meji se izbere konkretno PRIPOROČENO ter prejšnja/kasnejša možnost.
+- 10 l ostaja normalna rezerva, absolutna meja ostaja 8 l.
+- Po Osveži se najprej preračuna trenutno gorivo in nato celotna mejna strategija ponovno.
 
-- Smart Fuel alternatives now have explicit roles. A **PREJŠNJA MOŽNOST** must be at least 60 km before the main recommendation and a **KASNEJŠA MOŽNOST** at least 60 km after it. If one side has no meaningful candidate, Manni shows fewer cards instead of inventing a mislabeled alternative.
-- A later option below 10 l is clearly labeled **SKRAJNA MOŽNOST**.
-- Exactly **10.0 l** is treated as the reserve boundary, not as entering the reserve. The warning appears only below the 10 l boundary (with a small rounding tolerance).
-- All **Pokaži na zemljevidu** buttons now work even when the recommended station is outside the currently loaded map cell: the map moves to the exact verified station and opens a temporary popup directly if necessary.
-- Price sanity, national sanity, motorway/off-motorway logic and Slovenian number formatting remain unchanged.
+Zemljevid, ture, tankanja, GPS checkpointi, arhiv in preverjanje cen ostajajo iz 3.22/3.20.
