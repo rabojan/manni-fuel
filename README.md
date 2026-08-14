@@ -1,6 +1,6 @@
-# Manni Fuel 3.29 — Route-country border fix
+# Manni Fuel 3.30 — Recommendation Focus UX
 
-- Border Strategy follows only countries from the confirmed route instead of nearby-country fuel stations.
-- Current country is inferred only near the start; subsequent country anchors come from confirmed route points.
-- Very early “Prejšnja možnost” is hidden when the tank is still too full for a meaningful refuel (less than ~30% tank capacity can be added).
-- Smart Fuel performance pipeline, price sanity, verification cache, reserve logic and map behavior remain unchanged from 3.28.
+- Smart Fuel logic is unchanged from 3.29.
+- `Pokaži na zemljevidu` now closes the route dialog, zooms directly to the selected station (zoom 16), highlights it and opens its popup automatically.
+- The popup immediately exposes station name, price, distance/opening-hours enrichment and the `Navigiraj` action.
+- The focused recommendation uses a temporary high-priority marker so it remains obvious even when many other stations exist nearby.

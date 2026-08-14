@@ -247,33 +247,37 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.23 — border strategy beta');
+console.info('Manni Fuel 3.30 — recommendation focus UX');
 
 // 3.11: allow recommendation module to show a remote station without coupling modules.
 window.addEventListener('manni:show-station',async e=>{
   const s=e.detail;
-  setTimeout(()=>state.map.invalidateSize(),40);if(!s||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return;
+  if(!s||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return;
   const lat=Number(s.lat),lon=Number(s.lon);
-  state.programmaticUntil=Date.now()+1800;
-  state.map.setView([lat,lon],14,{animate:true});
+
+  // Recommendation focus must be unmistakable: close route dialog first (handled by recommendation.js),
+  // then zoom to the exact station and open its popup immediately. Do not wait for a fresh station search.
+  state.programmaticUntil=Date.now()+2600;
+  setTimeout(()=>state.map.invalidateSize(),40);
+  state.map.setView([lat,lon],16,{animate:true});
   setSearchCenter(lat,lon,false);
-  await loadStations();
-  let hit=state.stations.find(x=>x.id===s.id);
-  if(!hit){
-    const near=state.stations.reduce((best,x)=>{const d=km(lat,lon,x.lat,x.lon);return !best||d<best.d?{x,d}:best},null);
-    if(near&&near.d<1.5)hit=near.x;
+
+  if(state.recommendationFocusMarker){
+    try{state.map.removeLayer(state.recommendationFocusMarker)}catch{}
+    state.recommendationFocusMarker=null;
   }
-  if(hit){await focusStation(hit);return}
-  // Recommendation may be outside the currently returned station cell or filtered from the normal map list.
-  // In that case show the exact verified recommendation directly instead of making the button appear broken.
+
   const temp=Object.assign({},s,{lat,lon,distance:state.gps?km(state.gps.lat,state.gps.lon,lat,lon):null});
-  const m=L.marker([lat,lon],{icon:markerIcon(temp)});
-  m.bindPopup(popupHtml(temp,null,!!state.gps,null,true),{closeButton:true,autoPan:true,maxWidth:290});
-  m.on('click',async()=>{
+  const icon=L.divIcon({className:'',html:`<div class="price-marker recommendation-focus">${esc(markerPrice(temp)||'⛽')}</div>`,iconSize:[92,36],iconAnchor:[46,18]});
+  const m=L.marker([lat,lon],{icon,zIndexOffset:2000}).addTo(state.map);
+  state.recommendationFocusMarker=m;
+  m.bindPopup(popupHtml(temp,null,!!state.gps,null,true),{closeButton:true,autoPan:true,maxWidth:310,autoPanPadding:[24,24]});
+
+  const enrich=async()=>{
     m.setPopupContent(popupHtml(temp,null,!!state.gps,null,true));
     const [roadKm,hours]=await Promise.all([getRoadDistance(temp),getOpeningInfo(temp)]);
     if(m.isPopupOpen())m.setPopupContent(popupHtml(temp,roadKm,false,hours,false));
-  });
-  state.stationMarkers.set(temp.id,m);state.markerLayer.addLayer(m);
-  setTimeout(()=>{m.openPopup();m.fire('click')},300);
+  };
+  m.on('click',enrich);
+  setTimeout(()=>{m.openPopup();enrich()},220);
 });
