@@ -1,4 +1,4 @@
-// Manni's World 3.15 — dynamic verified smart fuel recommendation
+// Manni's World 3.16 — smart refuel window + route-spread alternatives
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -9,15 +9,18 @@
   const API=(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,'');
   const OSRM='https://router.project-osrm.org/route/v1/driving/';
   const OVERPASS='https://overpass-api.de/api/interpreter';
+  const FX_API='https://api.frankfurter.dev/v2/rates';
   const RESERVE_L=10;              // normal reserve
   const RESERVE_FLEX=0.20;          // may use at most 20% of the reserve when it clearly improves the plan
   const ABSOLUTE_MIN_L=RESERVE_L*(1-RESERVE_FLEX); // 8 l — never recommend arrival below this
   const MAX_OFF_ROUTE_KM=5;        // agreed corridor
-  const NORMAL_ZONE_KM=100;        // normally start looking seriously in the last 100 km before reserve
+  const NORMAL_ZONE_KM=120;        // normal refuel window: final ~120 km before 10 l reserve
   const EARLY_LOOKAHEAD_KM=250;    // compare an early opportunity with the next part of the route
   const EARLY_MIN_DIFF_EUR=0.08;   // meaningful price difference
   const EARLY_MIN_SAVING_EUR=5;    // meaningful expected saving
-  const EARLY_MAX_TANK_FRACTION=0.50; // normally do not stop early while more than half a tank remains
+  const EARLY_MAX_TANK_FRACTION=0.50; // normal economical stop only when <= half a tank remains
+  const MIN_NORMAL_FILL_FRACTION=0.45; // normal stop should allow filling roughly >=45% of tank
+  const ALT_MIN_GAP_KM=60;             // alternatives must be meaningfully separated along route
   const EXCEPTIONAL_DIFF_EUR=0.15;    // exceptional opportunity may override the half-tank rule
   const EXCEPTIONAL_SAVING_EUR=10;
   const VERIFY_RADIUS_M=300;
@@ -34,7 +37,11 @@
   function normText(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
   function tokens(v){return new Set(normText(v).split(/\s+/).filter(x=>x.length>1))}
   function nameScore(a,b){const A=tokens(a),B=tokens(b);if(!A.size||!B.size)return 0;let hit=0;A.forEach(x=>{if(B.has(x))hit++});return hit/Math.max(A.size,B.size)}
-  function fmtPrice(s){return `${slNum(s.price,2)} ${s.currency==='EUR'?'€/l':s.currency+'/l'}`}
+  function fmtPrice(s){
+    const native=`${slNum(s.price,2)} ${s.currency==='EUR'?'€/l':s.currency+'/l'}`;
+    if(s.currency!=='EUR'&&Number.isFinite(s.priceEur))return `${native} · ~${slNum(s.priceEur,2)} €/l`;
+    return native;
+  }
   function pos(){return new Promise((res,rej)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lon:p.coords.longitude}),()=>rej(new Error('GPS lokacije ni bilo mogoče dobiti.')),{enableHighAccuracy:true,timeout:12000,maximumAge:15000}):rej(new Error('GPS ni na voljo.')))}
   async function routeGeometry(points){const coords=points.map(p=>`${p.lon},${p.lat}`).join(';');const u=new URL(OSRM+coords);u.searchParams.set('overview','full');u.searchParams.set('geometries','geojson');u.searchParams.set('steps','false');const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('Poti ni mogoče izračunati.');const j=await r.json(),rt=j.routes?.[0];if(!rt)throw new Error('Poti ni mogoče izračunati.');return {km:rt.distance/1000,line:rt.geometry.coordinates.map(c=>({lon:+c[0],lat:+c[1]}))}}
   function cumulative(line){const c=[0];for(let i=1;i<line.length;i++)c[i]=c[i-1]+hav(line[i-1],line[i]);return c}
@@ -43,6 +50,23 @@
   function norm(fs){const out=[];for(const f of fs){const c=f.geometry?.coordinates,p=f.properties||{};if(!c)continue;const lon=+c[0],lat=+c[1],price=+p.price;if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(price)||price<=0)continue;out.push({id:String(p.id||p.externalId||lat+'-'+lon),name:p.name||p.brand||'Bencinska črpalka',brand:p.brand||'',address:[p.address,p.city].filter(Boolean).join(', '),country:String(p.country||'').toUpperCase(),lat,lon,price,currency:p.currency||'EUR'})}return out}
   function dedupe(a){const out=[];for(const s of a)if(!out.some(x=>hav(s,x)<.08))out.push(s);return out}
   function sample(line,cum,maxKm){const pts=[line[0]],step=55,limit=Math.min(maxKm,cum[cum.length-1]);let target=step;for(let i=1;i<line.length&&target<=limit;i++){while(cum[i]>=target&&target<=limit){pts.push(line[i]);target+=step}}if(limit>20){let idx=cum.findIndex(x=>x>=limit);if(idx<0)idx=line.length-1;pts.push(line[idx])}return pts.slice(0,16)}
+  async function fxTable(currencies){
+    const out={EUR:1};
+    const needed=[...new Set(currencies.filter(c=>c&&c!=='EUR'))];
+    if(!needed.length)return out;
+    try{
+      const u=new URL(FX_API);u.searchParams.set('base','EUR');u.searchParams.set('quotes',needed.join(','));
+      const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw 0;
+      const rows=await r.json();
+      for(const row of Array.isArray(rows)?rows:[]){const q=String(row.quote||'').toUpperCase(),rate=Number(row.rate);if(q&&Number.isFinite(rate)&&rate>0)out[q]=rate}
+    }catch(e){}
+    return out;
+  }
+  function eurPrice(s,fx){
+    if(s.currency==='EUR')return s.price;
+    const rate=fx[s.currency];
+    return Number.isFinite(rate)&&rate>0?s.price/rate:null;
+  }
   function liveFuel(d){const j=d.journey||{},base=Number(d.vehicle?.currentFuelLitres),avg=Number(d.vehicle?.averageConsumption),tracked=Number(j.trackedKm||0);if(Number.isFinite(j.estimatedFuelLitres))return Math.max(0,Number(j.estimatedFuelLitres));if(!Number.isFinite(base))return null;return Number.isFinite(avg)&&avg>0?Math.max(0,base-tracked*avg/100):base}
 
   // One Overpass request verifies several strongest candidates at once. This avoids the old failure mode
@@ -84,61 +108,86 @@
   function fuelAtArrival(current,avg,along){return Math.max(0,current-along*avg/100)}
   function plannedFillLitres(tank,current,avg,along){const arrival=fuelAtArrival(current,avg,along);return Number.isFinite(tank)&&tank>0?Math.max(0,tank-arrival):Math.max(0,current-arrival)}
   function baseScore(x){
-    // Reliability has already been enforced. Here prefer off-motorway, lower price and less deviation.
+    // Reliability has already been enforced. Compare normalized EUR prices, then road type and deviation.
+    const p=Number.isFinite(x.priceEur)?x.priceEur:Infinity;
     const motorwayPenalty=x.motorway===true?0.12:0;
-    return x.price+motorwayPenalty+x.off*0.006;
+    return p+motorwayPenalty+x.off*0.006;
   }
-  function sameCurrency(a,b){return a.currency===b.currency}
   function earlyOpportunity(s,all,{tank,fuel,avg}){
-    if(s.currency!=='EUR'||!Number.isFinite(tank)||tank<=0)return null; // no raw cross-currency comparisons
+    if(!Number.isFinite(s.priceEur)||!Number.isFinite(tank)||tank<=0)return null;
     const arrival=fuelAtArrival(fuel,avg,s.along);
     const fill=plannedFillLitres(tank,fuel,avg,s.along);
     if(fill<=0)return null;
-    const future=all.filter(x=>x.id!==s.id&&x.verified&&sameCurrency(s,x)&&x.along>=s.along+25&&x.along<=s.along+EARLY_LOOKAHEAD_KM);
+    const future=all.filter(x=>x.id!==s.id&&x.verified&&Number.isFinite(x.priceEur)&&x.along>=s.along+25&&x.along<=s.along+EARLY_LOOKAHEAD_KM);
     if(!future.length)return null;
-    const futureMin=Math.min(...future.map(x=>x.price));
-    const diff=futureMin-s.price;
+    const futureMin=Math.min(...future.map(x=>x.priceEur));
+    const diff=futureMin-s.priceEur;
     const saving=diff*fill;
     const halfTankRule=arrival<=tank*EARLY_MAX_TANK_FRACTION;
     const exceptional=diff>=EXCEPTIONAL_DIFF_EUR&&saving>=EXCEPTIONAL_SAVING_EUR;
     if((halfTankRule||exceptional)&&diff>=EARLY_MIN_DIFF_EUR&&saving>=EARLY_MIN_SAVING_EUR)return {saving,diff,fill,futureMin,arrival,exceptional};
     return null;
   }
+  function bestByScore(list){return [...list].sort((a,b)=>baseScore(a)-baseScore(b)||(b.along-a.along))[0]||null}
+  function chooseAlternatives(verified,main,ctx){
+    const earlier=verified.filter(x=>x.id!==main.id&&x.along<=main.along-ALT_MIN_GAP_KM&&x.along>=Math.max(0,main.along-220));
+    const later=verified.filter(x=>x.id!==main.id&&x.along>=main.along+ALT_MIN_GAP_KM&&x.along<=ctx.extendedKm);
+    const a=bestByScore(earlier);
+    // For later alternative, favor the latest safely reachable group, then price.
+    let b=null;
+    if(later.length){
+      const far=Math.max(...later.map(x=>x.along));
+      b=bestByScore(later.filter(x=>x.along>=far-80));
+    }
+    const out=[];if(a)out.push(a);if(b&&(!a||b.id!==a.id))out.push(b);
+    if(out.length<2){
+      const fallback=verified.filter(x=>x.id!==main.id&&!out.some(y=>y.id===x.id)&&Math.abs(x.along-main.along)>=ALT_MIN_GAP_KM)
+        .sort((a,b)=>Math.abs(a.along-main.along)-Math.abs(b.along-main.along)||baseScore(a)-baseScore(b));
+      while(out.length<2&&fallback.length)out.push(fallback.shift());
+    }
+    return out;
+  }
   function pickRecommendations(stations,ctx){
-    const verified=stations.filter(x=>x.verified&&x.along<=ctx.extendedKm);
+    const verified=stations.filter(x=>x.verified&&x.along<=ctx.extendedKm&&Number.isFinite(x.priceEur));
     if(!verified.length)return {main:null,alts:[],reasonType:'none'};
     const safeKm=ctx.safeKm,extendedKm=ctx.extendedKm;
     const normalStart=Math.max(0,safeKm-NORMAL_ZONE_KM);
 
-    // 1) Earlier economical stop: only when the tank is sufficiently empty, unless the saving is exceptional.
-    const early=verified.filter(x=>x.along<normalStart&&x.along<=safeKm).map(x=>({x,opp:earlyOpportunity(x,verified,ctx)})).filter(z=>z.opp).sort((a,b)=>(b.opp.saving-a.opp.saving)||(baseScore(a.x)-baseScore(b.x)));
+    // 1) Early economical stop: allowed only if <= half tank remains, unless saving is exceptional.
+    const early=verified.filter(x=>x.along<normalStart&&x.along<=safeKm)
+      .map(x=>({x,opp:earlyOpportunity(x,verified,ctx)})).filter(z=>z.opp)
+      .sort((a,b)=>(b.opp.saving-a.opp.saving)||(baseScore(a.x)-baseScore(b.x)));
     let main,reasonType='normal',opportunity=null;
     if(early.length){main=early[0].x;opportunity=early[0].opp;reasonType='early'}
     else{
-      // 2) Normal zone: final ~100 km before the normal 10 l reserve.
+      // 2) Normal window near the reserve. Require a meaningful fill when tank size is known.
       let zone=verified.filter(x=>x.along>=normalStart&&x.along<=safeKm);
+      if(Number.isFinite(ctx.tank)&&ctx.tank>0){
+        const meaningful=zone.filter(x=>plannedFillLitres(ctx.tank,ctx.fuel,ctx.avg,x.along)>=ctx.tank*MIN_NORMAL_FILL_FRACTION);
+        if(meaningful.length)zone=meaningful;
+      }
       if(zone.length){
-        zone.sort((a,b)=>baseScore(a)-baseScore(b)||(b.along-a.along));
+        // Within the window, choose economical + off-motorway, but prefer later if score is very similar.
+        zone.sort((a,b)=>{const ds=baseScore(a)-baseScore(b);return Math.abs(ds)<0.015?(b.along-a.along):ds});
         main=zone[0];
       } else {
-        // 3) Controlled reserve flex: only if there is no good verified station before 10 l.
-        // We may continue beyond the normal reserve, but never below 8 l.
+        // 3) Controlled reserve flex only if there is no good verified station before 10 l.
         let flex=verified.filter(x=>x.along>safeKm&&x.along<=extendedKm);
         if(flex.length){
           flex.sort((a,b)=>baseScore(a)-baseScore(b)||(a.along-b.along));
           main=flex[0]; reasonType='reserve-flex';
         } else {
-          // Last safe verified group before reserve.
+          // 4) Last safely reachable verified group — do not fall back to an arbitrary early cheap station.
           const before=verified.filter(x=>x.along<=safeKm);
-          const furthest=before.length?Math.max(...before.map(x=>x.along)):Math.max(...verified.map(x=>x.along));
-          let late=verified.filter(x=>x.along<=safeKm&&x.along>=Math.max(0,furthest-45));
-          late.sort((a,b)=>baseScore(a)-baseScore(b)||(b.along-a.along));
-          main=late[0]||verified[0];
+          if(!before.length)return {main:null,alts:[],reasonType:'none'};
+          const furthest=Math.max(...before.map(x=>x.along));
+          const late=before.filter(x=>x.along>=Math.max(0,furthest-80));
+          main=bestByScore(late)||before.sort((a,b)=>b.along-a.along)[0];
+          reasonType='late-safe';
         }
       }
     }
-    const altPool=verified.filter(x=>x.id!==main.id).sort((a,b)=>baseScore(a)-baseScore(b)||Math.abs(a.along-main.along)-Math.abs(b.along-main.along));
-    return {main,alts:altPool.slice(0,2),reasonType,opportunity};
+    return {main,alts:chooseAlternatives(verified,main,ctx),reasonType,opportunity};
   }
 
   function card(s,main=false,ctx={}){
@@ -170,11 +219,17 @@
       let stations=dedupe(norm(batches.flat())).map(s=>Object.assign(s,project(s,rt.line,cum))).filter(s=>s.off<=MAX_OFF_ROUTE_KM&&s.along>=0&&s.along<=extendedKm);
       if(!stations.length)throw new Error('V dosegu do absolutne 8-litrske meje nisem našel črpalke največ 5 km od poti.');
 
-      // First limit verification work to the strongest realistic set, but include stations from the normal refuel zone.
+      // Verify candidates spread across the whole reachable route, not only the cheapest early cluster.
       const normalStart=Math.max(0,safeKm-NORMAL_ZONE_KM);
-      const strongest=[...stations].sort((a,b)=>(a.price-b.price)||(a.off-b.off)).slice(0,16);
+      const buckets=new Map();
+      for(const x of stations){const k=Math.floor(x.along/100);if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(x)}
+      const spread=[];
+      for(const arr of buckets.values()){
+        arr.sort((a,b)=>(a.price-b.price)||(a.off-b.off));
+        spread.push(...arr.slice(0,3));
+      }
       const late=[...stations].filter(x=>x.along>=normalStart).sort((a,b)=>b.along-a.along).slice(0,8);
-      const verifySet=dedupe([...strongest,...late]).slice(0,22);
+      const verifySet=dedupe([...spread,...late]).sort((a,b)=>a.along-b.along).slice(0,30);
       ui.status.textContent='Preverjam, ali priporočene lokacije res obstajajo …';
       const evidence=await osmEvidence(verifySet);
       verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0});
@@ -182,14 +237,12 @@
       const verifiedCount=verifySet.filter(x=>x.verified).length;
       if(!verifiedCount)throw new Error('V varnem dosegu ni dovolj zanesljivo preverjene črpalke za avtomatsko priporočilo. Postaje lahko še vedno pregledaš na zemljevidu.');
 
-      const currencies=new Set(verifySet.filter(x=>x.verified).map(x=>x.currency));
-      // Never compare numeric prices across currencies. Ranking works within the route; cross-border savings wait for FX normalization.
-      let rankingPool=verifySet.filter(x=>x.verified);
-      if(currencies.size>1){
-        // Prefer the current route's first currency group for a safe automatic recommendation, unless only another group is reachable late.
-        const first=rankingPool.sort((a,b)=>a.along-b.along)[0]?.currency;
-        const same=rankingPool.filter(x=>x.currency===first);if(same.length)rankingPool=same;
-      }
+      const verifiedStations=verifySet.filter(x=>x.verified);
+      const currencies=[...new Set(verifiedStations.map(x=>x.currency))];
+      const fx=await fxTable(currencies);
+      verifiedStations.forEach(x=>{x.priceEur=eurPrice(x,fx)});
+      const rankingPool=verifiedStations.filter(x=>Number.isFinite(x.priceEur));
+      const missingFx=currencies.filter(c=>c!=='EUR'&&!Number.isFinite(fx[c]));
       const picked=pickRecommendations(rankingPool,{tank,fuel,avg,safeKm,extendedKm});
       if(!picked.main)throw new Error('Nisem našel dovolj zanesljive črpalke za priporočilo.');
       const main=picked.main,alts=picked.alts;
@@ -207,13 +260,14 @@
       }
       if(main.motorway===false)reason+=' Prednost ima preverjena črpalka izven avtocestnega servisnega območja.';
       else if(main.motorway===true)reason+=' Gre za avtocestno črpalko; izbrana je bila, ker preverjena varnejša oziroma smiselnejša možnost izven avtoceste ni bila boljša.';
-      if(currencies.size>1)reason+=' Kandidatov v različnih valutah še ne primerjam neposredno med seboj.';
+      if(currencies.length>1)reason+=' Cene različnih valut so za primerjavo preračunane v EUR po dnevnem referenčnem tečaju.';
+      if(missingFx.length)reason+=` Za ${missingFx.join(', ')} menjalnega tečaja trenutno nisem dobil, zato teh kandidatov ne uporabljam v avtomatskem izboru.`;
       ui.reason.textContent=reason;
       const lastKey='manni.smartFuel.lastRecommendation';
       const previous=localStorage.getItem(lastKey);
       const changed=previous&&previous!==main.id;
       localStorage.setItem(lastKey,main.id);
-      ui.status.textContent=`✓ ${verifiedCount} preverjenih kandidatov · 10 l meja približno ${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
+      ui.status.textContent=`✓ ${verifiedCount} preverjenih kandidatov · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
     }catch(e){ui.main.innerHTML=`<div class="recommend-empty">${esc(e.message||'Priporočila ni bilo mogoče izračunati.')}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent='Priporočilo ni na voljo.'}
     finally{busy=false}
   }
@@ -224,5 +278,5 @@
   window.addEventListener('manni:fuel-changed',()=>setTimeout(refresh,600));
   window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)setTimeout(refresh,350);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
   setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)refresh()},2800);
-  console.info('Manni 3.15 dynamic verified recommendation ready');
+  console.info('Manni 3.16 smart refuel window ready');
 })();

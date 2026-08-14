@@ -1,4 +1,4 @@
-// Manni Fuel 3.15 — stable map + verified smart recommendation.
+// Manni Fuel 3.16 — stable map + verified smart recommendation.
 window.addEventListener('DOMContentLoaded',()=>{
   const w=document.getElementById('welcomeScreen');
   if(!w)return;
@@ -240,7 +240,7 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.15 — refresh preserves map view; startup/location zoom 14');
+console.info('Manni Fuel 3.16 — refresh preserves map view; startup/location zoom 14');
 
 // 3.11: allow recommendation module to show a remote station without coupling modules.
 window.addEventListener('manni:show-station',async e=>{
