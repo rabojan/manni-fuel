@@ -240,3 +240,14 @@ els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
 console.info('Manni Fuel 3.10 — refresh preserves map view; startup/location zoom 14');
+
+// 3.11: allow recommendation module to show a remote station without coupling modules.
+window.addEventListener('manni:show-station',async e=>{
+  const s=e.detail;if(!s||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return;
+  state.programmaticUntil=Date.now()+1500;
+  state.map.setView([Number(s.lat),Number(s.lon)],14,{animate:true});
+  setSearchCenter(Number(s.lat),Number(s.lon),false);
+  await loadStations();
+  const hit=state.stations.reduce((best,x)=>{const d=km(Number(s.lat),Number(s.lon),x.lat,x.lon);return !best||d<best.d?{x,d}:best},null);
+  if(hit&&hit.d<1.5)focusStation(hit.x);
+});
