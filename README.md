@@ -20,3 +20,5 @@ Testna URL različica po objavi na GitHub Pages:
 Main map UI cleanup: removed the 'Najnižja cena' display and the 'Najcenejše / Najbližje' selector. The central Refresh button remains. Smart Fuel and station data logic are unchanged. Help text updated accordingly in SL/DE/EN.
 
 3.37: cilj poti je premaknjen v zgornjo vrstico poleg gumba Osveži, bolj izrazit in viden na telefonu.
+
+3.37.1: iPhone layout fix — splash uses full viewport height; destination, Refresh and location are locked into one horizontal row.
