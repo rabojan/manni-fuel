@@ -7,3 +7,5 @@ Key change: Home Screen installs from a brand-new URL `manni-home-341.html` and 
 Top row: Destination | Refresh | My location.
 The old Lowest price and Cheapest/Nearest controls are removed.
 No Smart Fuel / route / pricing algorithm changes.
+
+3.41.1: Targeted iPhone Home Screen standalone safe-area fix only. No Smart Fuel, routing, fuel, cost, map-data or personalization logic changed. Home Screen header/top controls no longer add iOS top safe-area twice. New test entry: manni-home-3411.html.

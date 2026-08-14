@@ -1,7 +1,7 @@
 {
   "name": "Manni's World — Fuel",
   "short_name": "Manni's World",
-  "start_url": "./",
+  "start_url": "./manni-home-3411.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f47a18",
@@ -18,5 +18,6 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "id": "./manni-home-3411.html"
 }
