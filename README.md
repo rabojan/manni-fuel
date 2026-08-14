@@ -1,13 +1,14 @@
-# Manni Fuel 3.18 — Price Sanity beta
+# Manni Fuel 3.20 — National + local price sanity beta
 
-Spremembe po 3.17:
-- tuje valute v popupu: lokalna cena + približen EUR/l,
-- Najcenejše primerja normalizirano ceno v EUR,
-- lokalni sanity filter cen loči avtocestne in izven-avtocestne postaje,
-- sumljiv ekstrem (ob dovolj primerljivih lokalnih postajah) se skrije z zemljevida in iz Smart Fuel,
-- filter je konservativen: če ni dovolj primerljivih postaj, OSM klasifikacije ali FX podatka, postaje ne skrije.
+Built on 3.19. No route, trip, fuel-log, GPS-checkpoint, map UX, or recommendation-window architecture was removed.
 
-Beta pragovi:
-- najmanj 5 primerljivih postaj v istem tipu okolja,
-- lokalni radij 45 km,
-- manj kot 75 % lokalnega mediana ali več kot 145 % lokalnega mediana = izločitev.
+## New in 3.20
+
+- Adds a second price sanity gate using **national weekly diesel averages** from the European Commission Weekly Oil Bulletin (prices with taxes, week of 10 Aug 2026).
+- Local sanity remains road-aware: motorway stations are compared with motorway peers and off-motorway stations with off-motorway peers.
+- A clearly implausibly **low** price (more than 20% below the current national weekly average) is hidden from the map and excluded from Smart Fuel even if a whole local cluster contains similarly bad prices.
+- A high price is **not** rejected from the national benchmark alone, because motorway premiums can legitimately be large. High-price rejection remains local and road-class aware.
+- If the embedded national benchmark is older than 35 days, the national gate disables itself automatically rather than hiding stations on stale reference data. Local road-aware sanity remains active.
+- Foreign-currency popups continue to show native price plus approximate EUR conversion.
+
+Reference date: 2026-08-10.
