@@ -190,11 +190,13 @@
     return {main,alts:chooseAlternatives(verified,main,ctx),reasonType,opportunity};
   }
 
-  function card(s,main=false,ctx={}){
+  function card(s,main=false,ctx={},label=''){
     const arrival=fuelAtArrival(ctx.fuel,ctx.avg,s.along);
     const verify=`<span class="rec-verified">✓ preverjena lokacija</span>`;
     const road=s.motorway===true?'avtocestna':s.motorway===false?'izven avtoceste':'tip ceste ni potrjen';
-    return `<div class="recommend-card${main?' main':''}"><div class="rec-name">${esc(s.name)}</div><div class="rec-price">${esc(fmtPrice(s))}</div><div class="rec-verify">${verify}</div><div class="rec-meta"><span class="rec-route">čez približno ${slKm(s.along)} · ${slNum(s.off,1)} km s poti · ${road}</span><br><span>ob prihodu približno ${slL(arrival)} goriva</span>${s.address?`<br>${esc(s.address)}`:''}</div><button type="button" data-show-rec="${esc(s.id)}">Pokaži na zemljevidu</button></div>`
+    const warn=arrival<RESERVE_L?`<div class="rec-warning">⚠ Posega v 10-litrsko varnostno rezervo.</div>`:'';
+    const badge=label?`<div class="rec-badge${arrival<RESERVE_L?' danger':''}">${esc(label)}</div>`:'';
+    return `<div class="recommend-card${main?' main':''}">${badge}<div class="rec-name">${esc(s.name)}</div><div class="rec-price">${esc(fmtPrice(s))}</div><div class="rec-verify">${verify}</div><div class="rec-meta"><span class="rec-route">čez približno ${slKm(s.along)} · ${slNum(s.off,1)} km s poti · ${road}</span><br><span>ob prihodu približno ${slL(arrival)} goriva</span>${s.address?`<br>${esc(s.address)}`:''}</div>${warn}<button type="button" data-show-rec="${esc(s.id)}">Pokaži na zemljevidu</button></div>`
   }
 
   async function refresh(){
@@ -247,7 +249,8 @@
       if(!picked.main)throw new Error('Nisem našel dovolj zanesljive črpalke za priporočilo.');
       const main=picked.main,alts=picked.alts;
       window.__manniRecommendations=[main,...alts];
-      ui.main.innerHTML=card(main,true,{fuel,avg});ui.alts.innerHTML=alts.map(x=>card(x,false,{fuel,avg})).join('');
+      ui.main.innerHTML=card(main,true,{fuel,avg},'PRIPOROČENO');
+      ui.alts.innerHTML=alts.map((x,i)=>{const a=fuelAtArrival(fuel,avg,x.along);const label=i===0?'PREJŠNJA MOŽNOST':(a<RESERVE_L?'SKRAJNA MOŽNOST':'KASNEJŠA MOŽNOST');return card(x,false,{fuel,avg},label)}).join('');
 
       const arrival=fuelAtArrival(fuel,avg,main.along),marginL=arrival-reserve;
       let reason='';
