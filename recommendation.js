@@ -39,8 +39,8 @@
 
   const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const rad=x=>x*Math.PI/180;
-  const slNum=(v,d=2)=>new Intl.NumberFormat('sl-SI',{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v));
-  const slKm=v=>`${new Intl.NumberFormat('sl-SI',{minimumFractionDigits:v<10?1:0,maximumFractionDigits:v<10?1:0}).format(Number(v))} km`;
+  const slNum=(v,d=2)=>new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v));
+  const slKm=v=>`${new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:v<10?1:0,maximumFractionDigits:v<10?1:0}).format(Number(v))} km`;
   const slL=v=>`${slNum(v,1)} l`;
   const slEur=v=>`${slNum(v,2)} €`;
 

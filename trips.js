@@ -10,10 +10,10 @@
   if(!ui.open || !ui.dialog || !window.ManniStorage) return;
 
   function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-  function money(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' €':'—'}
-  function litres(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l':'—'}
-  function cons(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l/100 km':'—'}
-  function date(v){return v?new Date(v).toLocaleDateString('sl-SI',{day:'2-digit',month:'2-digit',year:'numeric'}):'—'}
+  function money(v){return Number.isFinite(Number(v))?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' €':'—'}
+  function litres(v){return Number.isFinite(Number(v))?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l':'—'}
+  function cons(v){return Number.isFinite(Number(v))?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l/100 km':'—'}
+  function date(v){return v?new Date(v).toLocaleDateString((window.ManniI18n?.locale?.()||'sl-SI'),{day:'2-digit',month:'2-digit',year:'numeric'}):'—'}
   function routeText(r){if(!r?.destination)return 'Pot ni nastavljena';return `Moja lokacija → ${r.via?.length?r.via.join(' → ')+' → ':''}${r.destination}`}
   function computeMeasuredConsumption(log){
     const asc=[...(log||[])].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
@@ -32,7 +32,7 @@
   }
   function suggestedName(data){
     if(data.route?.destination)return data.route.destination;
-    return 'Tura '+new Date().toLocaleDateString('sl-SI',{day:'2-digit',month:'2-digit',year:'numeric'});
+    return 'Tura '+new Date().toLocaleDateString((window.ManniI18n?.locale?.()||'sl-SI'),{day:'2-digit',month:'2-digit',year:'numeric'});
   }
   function render(){
     const d=window.ManniStorage.get(),t=d.activeTrip,log=d.fuelLog||[];
@@ -87,8 +87,8 @@
   function showDetail(id){
     const t=window.ManniStorage.get().tripArchive.find(x=>x.id===id);if(!t)return;
     const s=t.stats||stats(t.fuelLog,t.startOdometerKm,t.endOdometerKm);
-    const rows=[...(t.fuelLog||[])].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp)).map(e=>`<div class="trip-detail-fuel"><span>${date(e.timestamp)} · ${Number.isFinite(e.odometerKm)?Math.round(e.odometerKm).toLocaleString('sl-SI')+' km':'—'}</span><strong>${litres(e.litres)} · ${money(e.amountEur)}</strong><small>${Number.isFinite(e.pricePerLitre)?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(e.pricePerLitre)+' €/l':''}${e.fullTank?' · poln tank':''}</small></div>`).join('');
-    ui.detail.innerHTML=`<div class="trip-detail-head"><div><span class="eyebrow">ARHIV</span><h3>${esc(t.name)}</h3></div><button type="button" data-close-detail>✕</button></div><div class="trip-detail-route">${esc(routeText(t.route))}</div><div class="trip-detail-stats"><div><strong>${Number.isFinite(s.distanceKm)?Math.round(s.distanceKm).toLocaleString('sl-SI')+' km':'—'}</strong><span>prevoženo</span></div><div><strong>${litres(s.totalLitres)}</strong><span>natočeno</span></div><div><strong>${money(s.totalCostEur)}</strong><span>strošek</span></div><div><strong>${Number.isFinite(s.averagePricePerLitre)?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(s.averagePricePerLitre)+' €/l':'—'}</strong><span>povp. cena</span></div><div><strong>${cons(s.measuredConsumption)}</strong><span>izmerjena poraba</span></div></div><h4>Tankanja</h4>${rows||'<div class="trip-empty">Na tej turi ni bilo zabeleženega tankanja.</div>'}`;
+    const rows=[...(t.fuelLog||[])].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp)).map(e=>`<div class="trip-detail-fuel"><span>${date(e.timestamp)} · ${Number.isFinite(e.odometerKm)?Math.round(e.odometerKm).toLocaleString((window.ManniI18n?.locale?.()||'sl-SI'))+' km':'—'}</span><strong>${litres(e.litres)} · ${money(e.amountEur)}</strong><small>${Number.isFinite(e.pricePerLitre)?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(e.pricePerLitre)+' €/l':''}${e.fullTank?' · poln tank':''}</small></div>`).join('');
+    ui.detail.innerHTML=`<div class="trip-detail-head"><div><span class="eyebrow">ARHIV</span><h3>${esc(t.name)}</h3></div><button type="button" data-close-detail>✕</button></div><div class="trip-detail-route">${esc(routeText(t.route))}</div><div class="trip-detail-stats"><div><strong>${Number.isFinite(s.distanceKm)?Math.round(s.distanceKm).toLocaleString((window.ManniI18n?.locale?.()||'sl-SI'))+' km':'—'}</strong><span>prevoženo</span></div><div><strong>${litres(s.totalLitres)}</strong><span>natočeno</span></div><div><strong>${money(s.totalCostEur)}</strong><span>strošek</span></div><div><strong>${Number.isFinite(s.averagePricePerLitre)?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(s.averagePricePerLitre)+' €/l':'—'}</strong><span>povp. cena</span></div><div><strong>${cons(s.measuredConsumption)}</strong><span>izmerjena poraba</span></div></div><h4>Tankanja</h4>${rows||'<div class="trip-empty">Na tej turi ni bilo zabeleženega tankanja.</div>'}`;
     ui.detail.hidden=false;
   }
   function deleteArchive(id){

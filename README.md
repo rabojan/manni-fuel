@@ -1,7 +1,15 @@
-# Manni Fuel 3.32 — Stroški poti beta
+# Manni Fuel 3.33 — Personalisation & Languages beta
 
-- Adds a read-only **Stroški poti** dashboard inside Pot.
-- Shows predicted trip distance, fuel consumption, fuel-cost range, actual paid fuel, estimated cash still needed, cost/100 km, measured consumption and current Smart Fuel saving estimate.
-- Uses the current route, current estimated fuel, refuelling log, 10 l arrival reserve, EC national diesel references already used by Price Sanity, and current Smart Fuel recommendation.
-- Recalculates after route validation, refuelling, trip changes and Smart Fuel updates.
-- Does not change map, route, tanking, verification or Smart Fuel selection logic.
+Based on the stable 3.32 trip-cost build. Smart Fuel, routing, station pricing, journey checkpoints and trip-cost algorithms are unchanged.
+
+New in 3.33:
+- per-device language: Slovenščina / Deutsch / English
+- per-device app/vehicle display name
+- custom splash image selected from the phone photo library
+- custom splash image stored locally in IndexedDB, not uploaded anywhere
+- reset to the default Manni's World splash
+- UI number/date locale follows selected language
+- existing route, vehicle, refuelling and archive data remain local and unchanged
+
+Upload all files to the GitHub Pages repository root and replace files with the same names.
+Test URL: ?v=333

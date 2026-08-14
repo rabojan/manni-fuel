@@ -8,9 +8,9 @@
   };
   if(!ui.panel||!window.ManniStorage)return;
   const RESERVE_L=10;
-  const fmt=(v,d=2)=>Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v)):'—';
+  const fmt=(v,d=2)=>Number.isFinite(Number(v))?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v)):'—';
   const eur=v=>Number.isFinite(Number(v))?`${fmt(v,2)} €`:'—';
-  const km=v=>Number.isFinite(Number(v))?`${new Intl.NumberFormat('sl-SI',{maximumFractionDigits:0}).format(Number(v))} km`:'—';
+  const km=v=>Number.isFinite(Number(v))?`${new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{maximumFractionDigits:0}).format(Number(v))} km`:'—';
   const l=v=>Number.isFinite(Number(v))?`${fmt(v,1)} l`:'—';
   const cons=v=>Number.isFinite(Number(v))?`${fmt(v,1)} l/100 km`:'—';
 

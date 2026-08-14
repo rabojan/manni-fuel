@@ -25,7 +25,7 @@ const FLAG={AT:'🇦🇹',BE:'🇧🇪',BA:'🇧🇦',BG:'🇧🇬',CH:'🇨🇭
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function km(a,b,c,d){const R=6371,p=Math.PI/180,da=(c-a)*p,dl=(d-b)*p,x=Math.sin(da/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function ago(iso){if(!iso)return'';const t=new Date(iso).getTime();if(!Number.isFinite(t))return'';const m=Math.max(0,Math.round((Date.now()-t)/60000));if(m<2)return'pravkar';if(m<60)return`${m} min`;const h=Math.round(m/60);if(h<48)return`${h} h`;return`${Math.round(h/24)} d`}
-function slNum(v,d=2){return new Intl.NumberFormat('sl-SI',{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v))}
+function slNum(v,d=2){return new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v))}
 function price(s){if(s.price==null)return null;const native=`${slNum(s.price,2)} ${s.currency==='EUR'?'€/l':(s.currency||'EUR')+'/l'}`;if(s.currency!=='EUR'&&Number.isFinite(s.priceEur))return `${native} · ≈ ${slNum(s.priceEur,2)} €/l`;return native}
 function markerPrice(s){if(s.price==null)return null;return `${slNum(s.price,2)} ${s.currency==='EUR'?'€':(s.currency||'EUR')}`}
 function nav(s){return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.lat+','+s.lon)}&travelmode=driving`}
@@ -36,7 +36,7 @@ function nameScore(a,b){
   if(!A.size||!B.size)return 0;
   let hit=0;A.forEach(x=>{if(B.has(x))hit++});return hit/Math.max(A.size,B.size)
 }
-function fmtTime(d){return d.toLocaleTimeString('sl-SI',{hour:'2-digit',minute:'2-digit'})}
+function fmtTime(d){return d.toLocaleTimeString((window.ManniI18n?.locale?.()||'sl-SI'),{hour:'2-digit',minute:'2-digit'})}
 const DAY={Su:0,Mo:1,Tu:2,We:3,Th:4,Fr:5,Sa:6};
 function daySet(spec){
   const out=new Set();
@@ -78,7 +78,7 @@ function evaluateOpeningHours(raw,now=new Date()){
   // Find the next opening within 8 days.
   for(let add=0;add<8;add++){
     const d=new Date(now);d.setDate(now.getDate()+add);const wd=d.getDay();
-    for(const r of rules){if(!r.days.has(wd)||r.closed||!r.spans)continue;for(const [a] of r.spans){const cand=new Date(d);cand.setHours(Math.floor(a/60),a%60,0,0);if(cand>now){const dayText=add===0?'danes':add===1?'jutri':cand.toLocaleDateString('sl-SI',{weekday:'short'});return {known:true,open:false,label:'Zaprto · odpre '+dayText+' ob '+fmtTime(cand)}}}}
+    for(const r of rules){if(!r.days.has(wd)||r.closed||!r.spans)continue;for(const [a] of r.spans){const cand=new Date(d);cand.setHours(Math.floor(a/60),a%60,0,0);if(cand>now){const dayText=add===0?'danes':add===1?'jutri':cand.toLocaleDateString((window.ManniI18n?.locale?.()||'sl-SI'),{weekday:'short'});return {known:true,open:false,label:'Zaprto · odpre '+dayText+' ob '+fmtTime(cand)}}}}
   }
   return {known:true,open:false,label:'Zaprto'};
 }
@@ -247,7 +247,7 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.32 — trip cost dashboard beta');
+console.info('Manni Fuel 3.33 — personalisation & languages beta');
 
 // 3.31: recommendation focus — direct, immediate popup without reloading the station area.
 window.addEventListener('manni:show-station',async e=>{

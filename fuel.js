@@ -12,9 +12,9 @@
   };
   if(!ui.btn || !ui.dialog || !window.ManniStorage) return;
 
-  function money(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' €':'—'}
-  function litres(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l':'—'}
-  function cons(v){return Number.isFinite(Number(v))?new Intl.NumberFormat('sl-SI',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l/100 km':'—'}
+  function money(v){return Number.isFinite(Number(v))?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' €':'—'}
+  function litres(v){return Number.isFinite(Number(v))?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l':'—'}
+  function cons(v){return Number.isFinite(Number(v))?new Intl.NumberFormat((window.ManniI18n?.locale?.()||'sl-SI'),{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v))+' l/100 km':'—'}
   function n(v){const x=Number(String(v??'').replace(',','.'));return Number.isFinite(x)?x:null}
   function localDateInput(iso){
     const d=iso?new Date(iso):new Date();
@@ -57,7 +57,7 @@
     const capacity=Number(v.tankLitres),avg=Number(v.averageConsumption),fuel=Number(v.currentFuelLitres);
     const usable=Number.isFinite(fuel)&&fuel>10?fuel-10:0;
     const range=Number.isFinite(avg)&&avg>0&&usable>0?usable/avg*100:null;
-    ui.vehicleSummary.innerHTML=`<strong>Manni</strong><span>Rezervoar: ${litres(capacity)} · Povprečna poraba: ${cons(avg)}</span><span>Varnostna rezerva: 10 l${Number.isFinite(range)?` · ocenjen varen doseg: <b>${Math.round(range)} km</b>`:''}</span>`;
+    ui.vehicleSummary.innerHTML=`<strong>${esc(window.ManniPersonalisation?.profileName?.()||"Manni")}</strong><span>Rezervoar: ${litres(capacity)} · Povprečna poraba: ${cons(avg)}</span><span>Varnostna rezerva: 10 l${Number.isFinite(range)?` · ocenjen varen doseg: <b>${Math.round(range)} km</b>`:''}</span>`;
 
     const totalCost=log.reduce((s,e)=>s+(Number.isFinite(e.amountEur)?e.amountEur:0),0);
     const totalLitres=log.reduce((s,e)=>s+(Number.isFinite(e.litres)?e.litres:0),0);
@@ -66,8 +66,8 @@
 
     if(!log.length){ui.history.innerHTML='<div class="fuel-empty">Tankanj še ni. Prvo tankanje dodaj spodaj.</div>';return}
     ui.history.innerHTML=log.map(e=>{
-      const d=new Date(e.timestamp),date=d.toLocaleDateString('sl-SI',{day:'2-digit',month:'2-digit',year:'numeric'}),time=d.toLocaleTimeString('sl-SI',{hour:'2-digit',minute:'2-digit'});
-      return `<article class="fuel-entry"><div class="fuel-entry-main"><strong>${date} · ${time}</strong><span>${litres(e.litres)} · ${money(e.amountEur)}${Number.isFinite(e.pricePerLitre)?` · ${e.pricePerLitre.toFixed(3).replace('.',',')} €/l`:''}</span><small>${Number.isFinite(e.odometerKm)?Math.round(e.odometerKm).toLocaleString('sl-SI')+' km':''}${Number.isFinite(e.distanceSincePrevious)?` · +${Math.round(e.distanceSincePrevious)} km`:''}${e.fullTank?' · poln tank':''}</small>${Number.isFinite(e.consumptionSinceFull)?`<em>Izmerjena poraba: ${cons(e.consumptionSinceFull)}</em>`:''}</div><button type="button" class="fuel-delete" data-delete="${esc(e.id)}" aria-label="Izbriši tankanje">✕</button></article>`;
+      const d=new Date(e.timestamp),date=d.toLocaleDateString((window.ManniI18n?.locale?.()||'sl-SI'),{day:'2-digit',month:'2-digit',year:'numeric'}),time=d.toLocaleTimeString((window.ManniI18n?.locale?.()||'sl-SI'),{hour:'2-digit',minute:'2-digit'});
+      return `<article class="fuel-entry"><div class="fuel-entry-main"><strong>${date} · ${time}</strong><span>${litres(e.litres)} · ${money(e.amountEur)}${Number.isFinite(e.pricePerLitre)?` · ${e.pricePerLitre.toFixed(3).replace('.',',')} €/l`:''}</span><small>${Number.isFinite(e.odometerKm)?Math.round(e.odometerKm).toLocaleString((window.ManniI18n?.locale?.()||'sl-SI'))+' km':''}${Number.isFinite(e.distanceSincePrevious)?` · +${Math.round(e.distanceSincePrevious)} km`:''}${e.fullTank?' · poln tank':''}</small>${Number.isFinite(e.consumptionSinceFull)?`<em>Izmerjena poraba: ${cons(e.consumptionSinceFull)}</em>`:''}</div><button type="button" class="fuel-delete" data-delete="${esc(e.id)}" aria-label="Izbriši tankanje">✕</button></article>`;
     }).join('');
   }
 
