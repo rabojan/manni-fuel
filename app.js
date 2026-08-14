@@ -247,15 +247,32 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.19 — stacked recommendation cards UX');
+console.info('Manni Fuel 3.21 — alternatives + map focus fix');
 
 // 3.11: allow recommendation module to show a remote station without coupling modules.
 window.addEventListener('manni:show-station',async e=>{
   const s=e.detail;if(!s||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return;
-  state.programmaticUntil=Date.now()+1500;
-  state.map.setView([Number(s.lat),Number(s.lon)],14,{animate:true});
-  setSearchCenter(Number(s.lat),Number(s.lon),false);
+  const lat=Number(s.lat),lon=Number(s.lon);
+  state.programmaticUntil=Date.now()+1800;
+  state.map.setView([lat,lon],14,{animate:true});
+  setSearchCenter(lat,lon,false);
   await loadStations();
-  const hit=state.stations.reduce((best,x)=>{const d=km(Number(s.lat),Number(s.lon),x.lat,x.lon);return !best||d<best.d?{x,d}:best},null);
-  if(hit&&hit.d<1.5)focusStation(hit.x);
+  let hit=state.stations.find(x=>x.id===s.id);
+  if(!hit){
+    const near=state.stations.reduce((best,x)=>{const d=km(lat,lon,x.lat,x.lon);return !best||d<best.d?{x,d}:best},null);
+    if(near&&near.d<1.5)hit=near.x;
+  }
+  if(hit){await focusStation(hit);return}
+  // Recommendation may be outside the currently returned station cell or filtered from the normal map list.
+  // In that case show the exact verified recommendation directly instead of making the button appear broken.
+  const temp=Object.assign({},s,{lat,lon,distance:state.gps?km(state.gps.lat,state.gps.lon,lat,lon):null});
+  const m=L.marker([lat,lon],{icon:markerIcon(temp)});
+  m.bindPopup(popupHtml(temp,null,!!state.gps,null,true),{closeButton:true,autoPan:true,maxWidth:290});
+  m.on('click',async()=>{
+    m.setPopupContent(popupHtml(temp,null,!!state.gps,null,true));
+    const [roadKm,hours]=await Promise.all([getRoadDistance(temp),getOpeningInfo(temp)]);
+    if(m.isPopupOpen())m.setPopupContent(popupHtml(temp,roadKm,false,hours,false));
+  });
+  state.stationMarkers.set(temp.id,m);state.markerLayer.addLayer(m);
+  setTimeout(()=>{m.openPopup();m.fire('click')},300);
 });

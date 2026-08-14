@@ -1,14 +1,11 @@
-# Manni Fuel 3.20 — National + local price sanity beta
+# Manni Fuel 3.21 — Alternatives + map focus fix beta
 
-Built on 3.19. No route, trip, fuel-log, GPS-checkpoint, map UX, or recommendation-window architecture was removed.
+Built on 3.20. No map, trip, fuel-log, route, GPS-checkpoint, price-sanity or Smart Fuel core architecture was removed.
 
-## New in 3.20
+## Fixed in 3.21
 
-- Adds a second price sanity gate using **national weekly diesel averages** from the European Commission Weekly Oil Bulletin (prices with taxes, week of 10 Aug 2026).
-- Local sanity remains road-aware: motorway stations are compared with motorway peers and off-motorway stations with off-motorway peers.
-- A clearly implausibly **low** price (more than 20% below the current national weekly average) is hidden from the map and excluded from Smart Fuel even if a whole local cluster contains similarly bad prices.
-- A high price is **not** rejected from the national benchmark alone, because motorway premiums can legitimately be large. High-price rejection remains local and road-class aware.
-- If the embedded national benchmark is older than 35 days, the national gate disables itself automatically rather than hiding stations on stale reference data. Local road-aware sanity remains active.
-- Foreign-currency popups continue to show native price plus approximate EUR conversion.
-
-Reference date: 2026-08-10.
+- Smart Fuel alternatives now have explicit roles. A **PREJŠNJA MOŽNOST** must be at least 60 km before the main recommendation and a **KASNEJŠA MOŽNOST** at least 60 km after it. If one side has no meaningful candidate, Manni shows fewer cards instead of inventing a mislabeled alternative.
+- A later option below 10 l is clearly labeled **SKRAJNA MOŽNOST**.
+- Exactly **10.0 l** is treated as the reserve boundary, not as entering the reserve. The warning appears only below the 10 l boundary (with a small rounding tolerance).
+- All **Pokaži na zemljevidu** buttons now work even when the recommended station is outside the currently loaded map cell: the map moves to the exact verified station and opens a temporary popup directly if necessary.
+- Price sanity, national sanity, motorway/off-motorway logic and Slovenian number formatting remain unchanged.

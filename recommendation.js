@@ -1,4 +1,4 @@
-// Manni's World 3.20 — smart refuel window + verified local price sanity + stacked UX
+// Manni's World 3.21 — meaningful alternatives + map focus fix
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -130,21 +130,24 @@
   }
   function bestByScore(list){return [...list].sort((a,b)=>baseScore(a)-baseScore(b)||(b.along-a.along))[0]||null}
   function chooseAlternatives(verified,main,ctx){
-    const earlier=verified.filter(x=>x.id!==main.id&&x.along<=main.along-ALT_MIN_GAP_KM&&x.along>=Math.max(0,main.along-220));
+    // Alternatives have explicit roles. Never relabel a later station as an earlier one (or vice versa).
+    // If a meaningful station does not exist on one side of the main recommendation, show fewer cards.
+    const earlier=verified.filter(x=>x.id!==main.id&&x.along<=main.along-ALT_MIN_GAP_KM&&x.along>=Math.max(0,main.along-300));
     const later=verified.filter(x=>x.id!==main.id&&x.along>=main.along+ALT_MIN_GAP_KM&&x.along<=ctx.extendedKm);
-    const a=bestByScore(earlier);
-    // For later alternative, favor the latest safely reachable group, then price.
-    let b=null;
+    let earlierPick=null,laterPick=null;
+    if(earlier.length){
+      // Prefer a useful later part of the earlier window, then price/off-route score.
+      const latest=Math.max(...earlier.map(x=>x.along));
+      earlierPick=bestByScore(earlier.filter(x=>x.along>=latest-90));
+    }
     if(later.length){
-      const far=Math.max(...later.map(x=>x.along));
-      b=bestByScore(later.filter(x=>x.along>=far-80));
+      // Prefer a genuinely later option, but never below the absolute 8 l boundary already encoded in extendedKm.
+      const latest=Math.max(...later.map(x=>x.along));
+      laterPick=bestByScore(later.filter(x=>x.along>=latest-90));
     }
-    const out=[];if(a)out.push(a);if(b&&(!a||b.id!==a.id))out.push(b);
-    if(out.length<2){
-      const fallback=verified.filter(x=>x.id!==main.id&&!out.some(y=>y.id===x.id)&&Math.abs(x.along-main.along)>=ALT_MIN_GAP_KM)
-        .sort((a,b)=>Math.abs(a.along-main.along)-Math.abs(b.along-main.along)||baseScore(a)-baseScore(b));
-      while(out.length<2&&fallback.length)out.push(fallback.shift());
-    }
+    const out=[];
+    if(earlierPick)out.push(Object.assign({},earlierPick,{_altRole:'earlier'}));
+    if(laterPick)out.push(Object.assign({},laterPick,{_altRole:'later'}));
     return out;
   }
   function pickRecommendations(stations,ctx){
@@ -194,8 +197,9 @@
     const arrival=fuelAtArrival(ctx.fuel,ctx.avg,s.along);
     const verify=`<span class="rec-verified">✓ preverjena lokacija</span>`;
     const road=s.motorway===true?'avtocestna':s.motorway===false?'izven avtoceste':'tip ceste ni potrjen';
-    const warn=arrival<RESERVE_L?`<div class="rec-warning">⚠ Posega v 10-litrsko varnostno rezervo.</div>`:'';
-    const badge=label?`<div class="rec-badge${arrival<RESERVE_L?' danger':''}">${esc(label)}</div>`:'';
+    const inReserve=arrival < (RESERVE_L-0.05);
+    const warn=inReserve?`<div class="rec-warning">⚠ Posega v 10-litrsko varnostno rezervo.</div>`:'';
+    const badge=label?`<div class="rec-badge${inReserve?' danger':''}">${esc(label)}</div>`:'';
     return `<div class="recommend-card${main?' main':''}">${badge}<div class="rec-name">${esc(s.name)}</div><div class="rec-price">${esc(fmtPrice(s))}</div><div class="rec-verify">${verify}</div><div class="rec-meta"><span class="rec-route">čez približno ${slKm(s.along)} · ${slNum(s.off,1)} km s poti · ${road}</span><br><span>ob prihodu približno ${slL(arrival)} goriva</span>${s.address?`<br>${esc(s.address)}`:''}</div>${warn}<button type="button" data-show-rec="${esc(s.id)}">Pokaži na zemljevidu</button></div>`
   }
 
@@ -255,7 +259,7 @@
       const main=picked.main,alts=picked.alts;
       window.__manniRecommendations=[main,...alts];
       ui.main.innerHTML=card(main,true,{fuel,avg},'PRIPOROČENO');
-      ui.alts.innerHTML=alts.map((x,i)=>{const a=fuelAtArrival(fuel,avg,x.along);const label=i===0?'PREJŠNJA MOŽNOST':(a<RESERVE_L?'SKRAJNA MOŽNOST':'KASNEJŠA MOŽNOST');return card(x,false,{fuel,avg},label)}).join('');
+      ui.alts.innerHTML=alts.map(x=>{const a=fuelAtArrival(fuel,avg,x.along);let label=x._altRole==='earlier'?'PREJŠNJA MOŽNOST':'KASNEJŠA MOŽNOST';if(x._altRole==='later'&&a<(RESERVE_L-0.05))label='SKRAJNA MOŽNOST';return card(x,false,{fuel,avg},label)}).join('');
 
       const arrival=fuelAtArrival(fuel,avg,main.along),marginL=arrival-reserve;
       let reason='';
@@ -287,5 +291,5 @@
   window.addEventListener('manni:fuel-changed',()=>setTimeout(refresh,600));
   window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)setTimeout(refresh,350);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
   setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)refresh()},2800);
-  console.info('Manni 3.20 smart refuel + national price sanity ready');
+  console.info('Manni 3.21 alternatives + map focus fix ready');
 })();
