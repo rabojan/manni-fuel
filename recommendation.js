@@ -1,4 +1,4 @@
-// Manni's World 3.14 — verified smart fuel recommendation
+// Manni's World 3.15 — dynamic verified smart fuel recommendation
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -9,12 +9,17 @@
   const API=(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,'');
   const OSRM='https://router.project-osrm.org/route/v1/driving/';
   const OVERPASS='https://overpass-api.de/api/interpreter';
-  const RESERVE_L=10;              // hard reserve — never recommend arrival below this
+  const RESERVE_L=10;              // normal reserve
+  const RESERVE_FLEX=0.20;          // may use at most 20% of the reserve when it clearly improves the plan
+  const ABSOLUTE_MIN_L=RESERVE_L*(1-RESERVE_FLEX); // 8 l — never recommend arrival below this
   const MAX_OFF_ROUTE_KM=5;        // agreed corridor
   const NORMAL_ZONE_KM=100;        // normally start looking seriously in the last 100 km before reserve
   const EARLY_LOOKAHEAD_KM=250;    // compare an early opportunity with the next part of the route
   const EARLY_MIN_DIFF_EUR=0.08;   // meaningful price difference
   const EARLY_MIN_SAVING_EUR=5;    // meaningful expected saving
+  const EARLY_MAX_TANK_FRACTION=0.50; // normally do not stop early while more than half a tank remains
+  const EXCEPTIONAL_DIFF_EUR=0.15;    // exceptional opportunity may override the half-tank rule
+  const EXCEPTIONAL_SAVING_EUR=10;
   const VERIFY_RADIUS_M=300;
   let busy=false;
 
@@ -38,7 +43,7 @@
   function norm(fs){const out=[];for(const f of fs){const c=f.geometry?.coordinates,p=f.properties||{};if(!c)continue;const lon=+c[0],lat=+c[1],price=+p.price;if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(price)||price<=0)continue;out.push({id:String(p.id||p.externalId||lat+'-'+lon),name:p.name||p.brand||'Bencinska črpalka',brand:p.brand||'',address:[p.address,p.city].filter(Boolean).join(', '),country:String(p.country||'').toUpperCase(),lat,lon,price,currency:p.currency||'EUR'})}return out}
   function dedupe(a){const out=[];for(const s of a)if(!out.some(x=>hav(s,x)<.08))out.push(s);return out}
   function sample(line,cum,maxKm){const pts=[line[0]],step=55,limit=Math.min(maxKm,cum[cum.length-1]);let target=step;for(let i=1;i<line.length&&target<=limit;i++){while(cum[i]>=target&&target<=limit){pts.push(line[i]);target+=step}}if(limit>20){let idx=cum.findIndex(x=>x>=limit);if(idx<0)idx=line.length-1;pts.push(line[idx])}return pts.slice(0,16)}
-  function liveFuel(d){const j=d.journey||{},base=Number(d.vehicle?.currentFuelLitres),avg=Number(d.vehicle?.averageConsumption),tracked=Number(j.trackedKm||0);if(!Number.isFinite(base))return null;return Number.isFinite(avg)&&avg>0?Math.max(0,base-tracked*avg/100):base}
+  function liveFuel(d){const j=d.journey||{},base=Number(d.vehicle?.currentFuelLitres),avg=Number(d.vehicle?.averageConsumption),tracked=Number(j.trackedKm||0);if(Number.isFinite(j.estimatedFuelLitres))return Math.max(0,Number(j.estimatedFuelLitres));if(!Number.isFinite(base))return null;return Number.isFinite(avg)&&avg>0?Math.max(0,base-tracked*avg/100):base}
 
   // One Overpass request verifies several strongest candidates at once. This avoids the old failure mode
   // where an aggressive global filter removed whole countries from the map.
@@ -85,35 +90,53 @@
   }
   function sameCurrency(a,b){return a.currency===b.currency}
   function earlyOpportunity(s,all,{tank,fuel,avg}){
-    if(s.currency!=='EUR')return null; // no raw cross-currency comparisons
+    if(s.currency!=='EUR'||!Number.isFinite(tank)||tank<=0)return null; // no raw cross-currency comparisons
+    const arrival=fuelAtArrival(fuel,avg,s.along);
+    const fill=plannedFillLitres(tank,fuel,avg,s.along);
+    if(fill<=0)return null;
     const future=all.filter(x=>x.id!==s.id&&x.verified&&sameCurrency(s,x)&&x.along>=s.along+25&&x.along<=s.along+EARLY_LOOKAHEAD_KM);
     if(!future.length)return null;
     const futureMin=Math.min(...future.map(x=>x.price));
     const diff=futureMin-s.price;
-    const fill=plannedFillLitres(tank,fuel,avg,s.along);
     const saving=diff*fill;
-    if(diff>=EARLY_MIN_DIFF_EUR&&saving>=EARLY_MIN_SAVING_EUR)return {saving,diff,fill,futureMin};
+    const halfTankRule=arrival<=tank*EARLY_MAX_TANK_FRACTION;
+    const exceptional=diff>=EXCEPTIONAL_DIFF_EUR&&saving>=EXCEPTIONAL_SAVING_EUR;
+    if((halfTankRule||exceptional)&&diff>=EARLY_MIN_DIFF_EUR&&saving>=EARLY_MIN_SAVING_EUR)return {saving,diff,fill,futureMin,arrival,exceptional};
     return null;
   }
   function pickRecommendations(stations,ctx){
-    const verified=stations.filter(x=>x.verified);
+    const verified=stations.filter(x=>x.verified&&x.along<=ctx.extendedKm);
     if(!verified.length)return {main:null,alts:[],reasonType:'none'};
-    const safeKm=ctx.safeKm;
+    const safeKm=ctx.safeKm,extendedKm=ctx.extendedKm;
     const normalStart=Math.max(0,safeKm-NORMAL_ZONE_KM);
 
-    // 1) A genuinely cheaper early stop may override waiting until the reserve zone.
-    const early=verified.filter(x=>x.along<normalStart).map(x=>({x,opp:earlyOpportunity(x,verified,ctx)})).filter(z=>z.opp).sort((a,b)=>(b.opp.saving-a.opp.saving)||(baseScore(a.x)-baseScore(b.x)));
+    // 1) Earlier economical stop: only when the tank is sufficiently empty, unless the saving is exceptional.
+    const early=verified.filter(x=>x.along<normalStart&&x.along<=safeKm).map(x=>({x,opp:earlyOpportunity(x,verified,ctx)})).filter(z=>z.opp).sort((a,b)=>(b.opp.saving-a.opp.saving)||(baseScore(a.x)-baseScore(b.x)));
     let main,reasonType='normal',opportunity=null;
     if(early.length){main=early[0].x;opportunity=early[0].opp;reasonType='early'}
     else{
-      // 2) Normal refuel: choose among the final ~100 km before the hard reserve.
+      // 2) Normal zone: final ~100 km before the normal 10 l reserve.
       let zone=verified.filter(x=>x.along>=normalStart&&x.along<=safeKm);
-      // If there is no verified station that late, take the last safe verified group rather than risk the reserve.
-      if(!zone.length){const furthest=Math.max(...verified.map(x=>x.along));zone=verified.filter(x=>x.along>=Math.max(0,furthest-45))}
-      zone.sort((a,b)=>baseScore(a)-baseScore(b)||(b.along-a.along));
-      main=zone[0]||verified[0];
+      if(zone.length){
+        zone.sort((a,b)=>baseScore(a)-baseScore(b)||(b.along-a.along));
+        main=zone[0];
+      } else {
+        // 3) Controlled reserve flex: only if there is no good verified station before 10 l.
+        // We may continue beyond the normal reserve, but never below 8 l.
+        let flex=verified.filter(x=>x.along>safeKm&&x.along<=extendedKm);
+        if(flex.length){
+          flex.sort((a,b)=>baseScore(a)-baseScore(b)||(a.along-b.along));
+          main=flex[0]; reasonType='reserve-flex';
+        } else {
+          // Last safe verified group before reserve.
+          const before=verified.filter(x=>x.along<=safeKm);
+          const furthest=before.length?Math.max(...before.map(x=>x.along)):Math.max(...verified.map(x=>x.along));
+          let late=verified.filter(x=>x.along<=safeKm&&x.along>=Math.max(0,furthest-45));
+          late.sort((a,b)=>baseScore(a)-baseScore(b)||(b.along-a.along));
+          main=late[0]||verified[0];
+        }
+      }
     }
-    // Alternatives are verified and genuinely reachable; keep one nearby in route distance and one price-oriented where possible.
     const altPool=verified.filter(x=>x.id!==main.id).sort((a,b)=>baseScore(a)-baseScore(b)||Math.abs(a.along-main.along)-Math.abs(b.along-main.along));
     return {main,alts:altPool.slice(0,2),reasonType,opportunity};
   }
@@ -128,22 +151,24 @@
   async function refresh(){
     if(busy)return;busy=true;ui.panel.hidden=false;ui.status.textContent='Iščem in preverjam črpalke ob poti …';ui.main.innerHTML='';ui.alts.innerHTML='';ui.reason.textContent='';
     try{
-      const d=window.ManniStorage.get(),route=d.route||{},avg=Number(d.vehicle?.averageConsumption),fuel=liveFuel(d),tank=Number(d.vehicle?.tankCapacityLitres),reserve=RESERVE_L;
+      const d=window.ManniStorage.get(),route=d.route||{},avg=Number(d.vehicle?.averageConsumption),fuel=liveFuel(d),tank=Number(d.vehicle?.tankLitres),reserve=RESERVE_L;
       if(!route.destination)throw new Error('Najprej nastavi cilj poti.');
       if(!Number.isFinite(avg)||avg<=0||!Number.isFinite(fuel))throw new Error('Vnesi trenutno gorivo in povprečno porabo.');
       if(!route.destinationPoint || (route.via||[]).length!==(route.viaPoints||[]).length)throw new Error('Pot vsebuje nepotrjene točke. Odpri Pot in jih izberi iz predlogov.');
       if(d.journey?.routeValid===false)throw new Error('Pot ni potrjena. Najprej popravi označeni odsek poti.');
-      const safeKm=Math.max(0,(fuel-reserve)/avg*100);if(safeKm<15)throw new Error('Doseg do 10-litrske rezerve je zelo majhen — izberi najbližjo preverjeno črpalko.');
+      const safeKm=Math.max(0,(fuel-reserve)/avg*100);
+      const extendedKm=Math.max(safeKm,Math.max(0,(fuel-ABSOLUTE_MIN_L)/avg*100));
+      if(extendedKm<15)throw new Error('Doseg do absolutne 8-litrske meje je zelo majhen — izberi najbližjo preverjeno črpalko.');
 
       const start=await pos();
       let pts=(d.journey?.resolvedPoints||[]).slice(d.journey?.nextIndex||0).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
       if(!pts.length)pts=[...(route.viaPoints||[]),route.destinationPoint].map(p=>({lat:Number(p.lat),lon:Number(p.lon),name:p.label||p.name})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
-      const rt=await routeGeometry([start,...pts]),cum=cumulative(rt.line),samples=sample(rt.line,cum,Math.min(rt.km,safeKm+80));
-      ui.status.textContent=`Pregledujem naslednjih približno ${Math.round(Math.min(safeKm,rt.km))} km …`;
+      const rt=await routeGeometry([start,...pts]),cum=cumulative(rt.line),samples=sample(rt.line,cum,Math.min(rt.km,extendedKm+80));
+      ui.status.textContent=`Pregledujem naslednjih približno ${Math.round(Math.min(extendedKm,rt.km))} km …`;
 
       const batches=[];for(let i=0;i<samples.length;i+=4){const part=await Promise.all(samples.slice(i,i+4).map(x=>fetchAt(x,20)));batches.push(...part)}
-      let stations=dedupe(norm(batches.flat())).map(s=>Object.assign(s,project(s,rt.line,cum))).filter(s=>s.off<=MAX_OFF_ROUTE_KM&&s.along>=0&&s.along<=safeKm);
-      if(!stations.length)throw new Error('V dosegu do 10-litrske rezerve nisem našel črpalke največ 5 km od poti.');
+      let stations=dedupe(norm(batches.flat())).map(s=>Object.assign(s,project(s,rt.line,cum))).filter(s=>s.off<=MAX_OFF_ROUTE_KM&&s.along>=0&&s.along<=extendedKm);
+      if(!stations.length)throw new Error('V dosegu do absolutne 8-litrske meje nisem našel črpalke največ 5 km od poti.');
 
       // First limit verification work to the strongest realistic set, but include stations from the normal refuel zone.
       const normalStart=Math.max(0,safeKm-NORMAL_ZONE_KM);
@@ -165,7 +190,7 @@
         const first=rankingPool.sort((a,b)=>a.along-b.along)[0]?.currency;
         const same=rankingPool.filter(x=>x.currency===first);if(same.length)rankingPool=same;
       }
-      const picked=pickRecommendations(rankingPool,{tank,fuel,avg,safeKm});
+      const picked=pickRecommendations(rankingPool,{tank,fuel,avg,safeKm,extendedKm});
       if(!picked.main)throw new Error('Nisem našel dovolj zanesljive črpalke za priporočilo.');
       const main=picked.main,alts=picked.alts;
       window.__manniRecommendations=[main,...alts];
@@ -174,7 +199,9 @@
       const arrival=fuelAtArrival(fuel,avg,main.along),marginL=arrival-reserve;
       let reason='';
       if(picked.reasonType==='early'&&picked.opportunity){
-        reason=`Zgodnejše ekonomično tankanje: ocenjeni prihranek je približno ${slEur(picked.opportunity.saving)} (${slNum(picked.opportunity.diff,2)} €/l manj kot najcenejša preverjena možnost v naslednjih približno ${EARLY_LOOKAHEAD_KM} km).`;
+        reason=`Zgodnejše ekonomično tankanje: ob prihodu boš lahko natočil približno ${slL(picked.opportunity.fill)}; ocenjeni prihranek je približno ${slEur(picked.opportunity.saving)} (${slNum(picked.opportunity.diff,2)} €/l manj kot najcenejša preverjena možnost v naslednjih približno ${EARLY_LOOKAHEAD_KM} km).${picked.opportunity.exceptional?' Gre za izjemno cenovno priložnost, zato je priporočilo dovoljeno tudi nekoliko prej.':''}`;
+      }else if(picked.reasonType==='reserve-flex'){
+        reason=`Naslednja smiselna preverjena črpalka je malo za normalno 10-litrsko rezervo. Manni uporabi del rezerve, vendar največ 20 %: ob prihodu ostane približno ${slL(arrival)}. Absolutna meja je ${slL(ABSOLUTE_MIN_L)}.`;
       }else{
         reason=`Tankanje je izbrano v varnem območju pred 10-litrsko rezervo. Ob prihodu ostane približno ${slL(arrival)} oziroma ${slL(Math.max(0,marginL))} nad rezervo.`;
       }
@@ -182,16 +209,20 @@
       else if(main.motorway===true)reason+=' Gre za avtocestno črpalko; izbrana je bila, ker preverjena varnejša oziroma smiselnejša možnost izven avtoceste ni bila boljša.';
       if(currencies.size>1)reason+=' Kandidatov v različnih valutah še ne primerjam neposredno med seboj.';
       ui.reason.textContent=reason;
-      ui.status.textContent=`✓ ${verifiedCount} preverjenih kandidatov · varen doseg približno ${Math.round(safeKm)} km`;
+      const lastKey='manni.smartFuel.lastRecommendation';
+      const previous=localStorage.getItem(lastKey);
+      const changed=previous&&previous!==main.id;
+      localStorage.setItem(lastKey,main.id);
+      ui.status.textContent=`✓ ${verifiedCount} preverjenih kandidatov · 10 l meja približno ${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
     }catch(e){ui.main.innerHTML=`<div class="recommend-empty">${esc(e.message||'Priporočila ni bilo mogoče izračunati.')}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent='Priporočilo ni na voljo.'}
     finally{busy=false}
   }
 
   ui.panel.addEventListener('click',e=>{const b=e.target.closest('[data-show-rec]');if(!b)return;const s=(window.__manniRecommendations||[]).find(x=>x.id===b.dataset.showRec);if(s)window.dispatchEvent(new CustomEvent('manni:show-station',{detail:s}))});
-  window.addEventListener('manni:checkpoint-request',()=>setTimeout(refresh,700));
+  // Recommendation must run only AFTER journey/checkpoint recalculation is complete.
   window.addEventListener('manni:route-changed',()=>setTimeout(refresh,1200));
   window.addEventListener('manni:fuel-changed',()=>setTimeout(refresh,600));
   window.addEventListener('manni:route-validated',e=>{if(e.detail?.valid)setTimeout(refresh,350);else{ui.panel.hidden=false;ui.status.textContent='Priporočilo čaka na potrjeno pot.';ui.main.innerHTML='<div class="recommend-empty">Najprej popravi označeni odsek poti.</div>';ui.alts.innerHTML='';ui.reason.textContent=''}});
   setTimeout(()=>{const d=window.ManniStorage.get();if(d.route?.destination)refresh()},2800);
-  console.info('Manni 3.14 verified recommendation ready');
+  console.info('Manni 3.15 dynamic verified recommendation ready');
 })();

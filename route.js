@@ -41,5 +41,5 @@
   ui.viaList.addEventListener('click',e=>{const b=e.target.closest('button[data-act]');if(!b)return;closeSuggestions();const i=Number(b.dataset.i),act=b.dataset.act;if(act==='remove')draftVia.splice(i,1);if(act==='up'&&i>0)[draftVia[i-1],draftVia[i]]=[draftVia[i],draftVia[i-1]];if(act==='down'&&i<draftVia.length-1)[draftVia[i+1],draftVia[i]]=[draftVia[i],draftVia[i+1]];renderVia()});
   document.addEventListener('click',e=>{if(activeBox&&!e.target.closest('.route-autocomplete-wrap'))closeSuggestions()});
   window.addEventListener('manni:trip-changed',updateBadge);updateBadge();
-  console.info('Manni 3.14 route autocomplete + duplicate guard ready');
+  console.info('Manni 3.15 route autocomplete + duplicate guard ready');
 })();

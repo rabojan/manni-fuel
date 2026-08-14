@@ -1,14 +1,8 @@
-# Manni Fuel 3.14 — Smart Fuel Verified Recommendation beta
+# Manni Fuel 3.15 — Dynamic Smart Fuel beta
 
-Nadgradnja po 3.12 vključuje dogovorjene popravke:
-- slovenski zapis števil (vejica za decimalke, pika za tisočice; cena goriva na 2 decimalki),
-- jasna zaznava podvojene točke poti,
-- 10 l kot stroga varnostna rezerva,
-- preferenca smiselnih črpalk izven avtocestnega servisnega območja,
-- zgodnejše ekonomično tankanje samo ob smiselnem prihranku,
-- zemljevid še vedno kaže vse Pumperly postaje,
-- Smart Fuel pa za avtomatsko priporočilo uporablja samo lokacije, dodatno potrjene z OSM `amenity=fuel`,
-- 1 glavno priporočilo + 2 preverjeni alternativi,
-- če ni zanesljivo preverjene postaje, aplikacija raje ne poda avtomatskega priporočila.
-
-Testni URL po objavi: `https://rabojan.github.io/manni-fuel/?v=314`
+- Osveži najprej zaključi GPS checkpoint in preračuna ocenjeno gorivo; šele nato se ponovno izračuna Smart Fuel.
+- Normalna rezerva ostaja 10 l; izjemoma se lahko uporabi največ 20 % te rezerve, absolutna meja je 8 l.
+- Zgodnje poceni tankanje upošteva samo litre, ki jih je ob prihodu dejansko mogoče natočiti.
+- Praviloma ne priporoča ekonomskega postanka, dokler je ob prihodu več kot polovica rezervoarja; izjema je izrazito velik dejanski prihranek.
+- Priporočilo je dinamično: po osvežitvi lahko ostane isto ali se spremeni glede na novo gorivo, lokacijo, cene in preverjene postaje.
+- Zemljevid, ture, tankanja in verifikacija postaj ostajajo ločeni moduli.
