@@ -14,3 +14,7 @@ Smart Fuel algoritem, routing, Pumperly/OSM logika, tankanja in stroški poti ni
 
 Testna URL različica po objavi na GitHub Pages:
 `https://rabojan.github.io/manni-fuel/?v=334`
+
+
+## 3.36
+Main map UI cleanup: removed the 'Najnižja cena' display and the 'Najcenejše / Najbližje' selector. The central Refresh button remains. Smart Fuel and station data logic are unchanged. Help text updated accordingly in SL/DE/EN.

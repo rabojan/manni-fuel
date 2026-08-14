@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="styles.css?v=3.33.0" />
+  <link rel="stylesheet" href="styles.css?v=3.36.0" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -33,14 +33,7 @@
     </header>
 
     <div class="top-controls">
-      <div class="filter-chip price-chip"><span class="chip-label">Najnižja</span><strong id="bestPrice">—</strong></div>
       <button id="refreshBtn" class="filter-chip refresh-chip" aria-label="Osveži" title="Osveži">↻</button>
-      <div class="filter-chip sort-chip">
-        <select id="sortSelect" aria-label="Razvrsti">
-          <option value="price">Najcenejše</option>
-          <option value="distance">Najbližje</option>
-        </select>
-      </div>
     </div>
 
     <button id="locateBtn" class="floating-btn" aria-label="Moja lokacija">➤</button>
@@ -234,17 +227,17 @@
     } catch(e) { console.warn('Cache reset', e); }
   })();
 </script>
-<script src="i18n.js?v=3.35.0"></script>
-<script src="personalization.js?v=3.35.0"></script>
-<script src="help-guide.js?v=3.35.0"></script>
-<script src="storage.js?v=3.35.0"></script>
-<script src="route.js?v=3.35.0"></script>
-<script src="fuel.js?v=3.35.0"></script>
-<script src="trips.js?v=3.35.0"></script>
-<script src="journey.js?v=3.35.0"></script>
-<script src="price-sanity.js?v=3.35.0"></script>
-<script src="recommendation.js?v=3.35.0"></script>
-<script src="trip-costs.js?v=3.35.0"></script>
-<script src="app.js?v=3.35.0"></script>
+<script src="i18n.js?v=3.36.0"></script>
+<script src="personalization.js?v=3.36.0"></script>
+<script src="help-guide.js?v=3.36.0"></script>
+<script src="storage.js?v=3.36.0"></script>
+<script src="route.js?v=3.36.0"></script>
+<script src="fuel.js?v=3.36.0"></script>
+<script src="trips.js?v=3.36.0"></script>
+<script src="journey.js?v=3.36.0"></script>
+<script src="price-sanity.js?v=3.36.0"></script>
+<script src="recommendation.js?v=3.36.0"></script>
+<script src="trip-costs.js?v=3.36.0"></script>
+<script src="app.js?v=3.36.0"></script>
 </body>
 </html>
