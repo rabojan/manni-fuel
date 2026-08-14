@@ -1,4 +1,4 @@
-// Manni Fuel 3.9 — station actions + opening hours beta. Europe/Pumperly core kept intact.
+// Manni Fuel 3.10 — stable map view. Refresh never changes map centre/zoom.
 window.addEventListener('DOMContentLoaded',()=>{
   const w=document.getElementById('welcomeScreen');
   if(!w)return;
@@ -118,13 +118,20 @@ function setSearchCenter(lat,lon,fit=false){
   }
 }
 
-function locate(load=true){
+function locate({load=true,recenter=false,startup=false}={}){
   navigator.geolocation?.getCurrentPosition(p=>{
     const {latitude:lat,longitude:lon,accuracy}=p.coords;
     state.gps={lat,lon,accuracy};
     if(state.userMarker)state.map.removeLayer(state.userMarker);
     state.userMarker=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<div class="user-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(state.map).bindPopup('Tvoja lokacija');
-    setSearchCenter(lat,lon,true);
+
+    // Startup and the dedicated location button may move the map.
+    // Refresh must NEVER change the user's current centre or zoom.
+    if(startup || recenter){
+      state.programmaticUntil=Date.now()+1200;
+      state.map.setView([lat,lon],14,{animate:!startup});
+      setSearchCenter(lat,lon,false);
+    }
     if(load)loadStations();
   },()=>{}, {enableHighAccuracy:true,timeout:10000,maximumAge:30000});
 }
@@ -222,9 +229,14 @@ async function applyStationAction(mode){
 }
 
 $('settingsBtn').addEventListener('click',()=>{els.radius.value=state.radiusKm;els.fuel.value=state.fuel;els.api.value=state.apiBase;els.settings.showModal()});
-$('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){setSearchCenter(state.center.lat,state.center.lon,true);loadStations()}});
-els.refresh.addEventListener('click',()=>{locate(false);loadStations();window.dispatchEvent(new CustomEvent('manni:checkpoint-request'))});
-els.locate.addEventListener('click',()=>locate(true));
+$('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){loadStations()}});
+els.refresh.addEventListener('click',()=>{
+  // Keep the exact map position/zoom. Update GPS marker and data only.
+  locate({load:false,recenter:false});
+  loadStations();
+  window.dispatchEvent(new CustomEvent('manni:checkpoint-request'));
+});
+els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
-initMap();locate(true);
-console.info('Manni Fuel 3.9 — nearest/cheapest actions + OSM opening hours');
+initMap();locate({load:true,startup:true});
+console.info('Manni Fuel 3.10 — refresh preserves map view; startup/location zoom 14');

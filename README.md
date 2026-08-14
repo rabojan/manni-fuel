@@ -1,8 +1,8 @@
-# Manni Fuel 3.9 — station actions & opening hours beta
+# Manni Fuel 3.10 — Map view fix beta
 
-- Najbližje: poišče najbližjo med naloženimi postajami (pri GPS poskusi cestno razdaljo za najbližje kandidate), centrira zemljevid in odpre popup.
-- Najcenejše: poišče najcenejšo med trenutno naloženimi postajami, centrira zemljevid in odpre popup.
-- Popup dodatno preveri OpenStreetMap `opening_hours` okoli izbrane postaje.
-- Jasno pokaže 🟢 odprto, 🔴 zaprto ali ⚪ odpiralni čas ni znan.
-- Če je OSM zapis preveč kompleksen za varno razlago, aplikacija ne ugiba.
-- Obstoječi moduli poti, tankanj, GPS checkpointov in arhiva niso spreminjani.
+Spremembe glede na 3.9:
+- ob odprtju aplikacije se zemljevid postavi na GPS lokacijo z zoomom 14;
+- glavni gumb Osveži osveži GPS/checkpoint, cene in črpalke, vendar ne spremeni centra ali zooma zemljevida;
+- gumb za mojo lokacijo je edini gumb, ki zemljevid namensko vrne na GPS lokacijo (zoom 14);
+- sprememba nastavitev ne povzroči več samodejnega oddaljevanja zemljevida;
+- Najbližje/Najcenejše in odpiralni časi iz 3.9 ostajajo nespremenjeni.
