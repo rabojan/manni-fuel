@@ -1,9 +1,9 @@
-// Manni's World 3.34 — multilingual in-app help guide (SL / DE / EN).
+// Manni's World 3.35 — multilingual in-app help guide (SL / DE / EN).
 (function(){
   const copy={
     sl:{
       button:'Navodila za uporabo', kicker:'MANNI’S WORLD · NAVODILA', title:'PAMETNEJŠE TANKANJE NA POTI',
-      intro:'Manni’s World ti pomaga oceniti doseg, poiskati smiselne črpalke ob poti, primerjati cene med državami in spremljati stroške. Navigacijo še vedno vodi Sygic ali druga navigacijska aplikacija.',
+      intro:'Manni’s World ti pomaga, da med potjo veš, kdaj in kje se ti najbolj splača tankati. Upošteva tvojo pot, doseg, porabo in cene goriva ter poišče smiselne možnosti ob poti. Navigacija te vodi do cilja, Manni pa ti pomaga pri gorivu, stroških in pravem trenutku za postanek. Tako potuješ bolj mirno, pregledno in praviloma tudi ceneje.',
       gains:'Kaj s tem pridobiš?', chips:['cene goriva ob poti','pameten trenutek za tankanje','pred / po meji','avtocesta / izven avtoceste','10 l varnostne rezerve','stroški poti','zgodovina tankanj'],
       quick:['Nastavi vozilo','Nastavi pot','Preveri priporočilo','Med vožnjo osvežuj','Po tankanju vnesi podatke'],
       s1:'Najprej nastavi vozilo', s1p:'V razdelku Manni & tankanja vnesi velikost rezervoarja, povprečno porabo, trenutno količino goriva in stanje kilometrov. Te podatke Manni uporablja za izračun dosega.', normal:'Normalna rezerva', extreme:'Skrajna spodnja meja', why8:'Manni lahko v posebnem primeru poseže največ približno 20 % v 10-litrsko rezervo, če je naslednja preverjena črpalka bistveno bolj smiselna. Pod približno 8 l ne sme priporočati nadaljevanja.',
@@ -19,7 +19,7 @@
     },
     de:{
       button:'Anleitung', kicker:'MANNI’S WORLD · ANLEITUNG', title:'CLEVERER TANKEN UNTERWEGS',
-      intro:'Manni’s World hilft dir, die Reichweite abzuschätzen, sinnvolle Tankstellen entlang der Route zu finden, Preise zwischen Ländern zu vergleichen und Reisekosten zu verfolgen. Die eigentliche Navigation übernimmt weiterhin Sygic oder eine andere Navigations-App.',
+      intro:'Manni’s World hilft dir unterwegs zu entscheiden, wann und wo sich Tanken am meisten lohnt. Dabei berücksichtigt Manni deine Route, Reichweite, den Verbrauch und die Kraftstoffpreise und sucht sinnvolle Möglichkeiten entlang der Strecke. Die Navigation führt dich zum Ziel, Manni unterstützt dich bei Kraftstoff, Kosten und dem richtigen Zeitpunkt für einen Tankstopp. So reist du entspannter, übersichtlicher und in der Regel auch günstiger.',
       gains:'Was bringt dir Manni?', chips:['Kraftstoffpreise entlang der Route','sinnvoller Tankzeitpunkt','vor / nach der Grenze','Autobahn / abseits der Autobahn','10 l Sicherheitsreserve','Reisekosten','Tankhistorie'],
       quick:['Fahrzeug einstellen','Route festlegen','Empfehlung prüfen','Unterwegs aktualisieren','Nach dem Tanken Daten eintragen'],
       s1:'Zuerst das Fahrzeug einstellen', s1p:'Unter Fahrzeug & Tankvorgänge trägst du Tankvolumen, Durchschnittsverbrauch, aktuellen Kraftstoffstand und Kilometerstand ein. Daraus berechnet Manni deine Reichweite.', normal:'Normale Reserve', extreme:'Absolute Untergrenze', why8:'In einem besonderen Fall darf Manni höchstens etwa 20 % der 10-Liter-Reserve nutzen, wenn die nächste verifizierte Tankstelle deutlich sinnvoller ist. Unter ungefähr 8 l darf Manni kein Weiterfahren empfehlen.',
@@ -35,7 +35,7 @@
     },
     en:{
       button:'User guide', kicker:'MANNI’S WORLD · USER GUIDE', title:'SMARTER REFUELLING ON THE ROAD',
-      intro:'Manni’s World helps you estimate range, find sensible fuel stations along your route, compare prices between countries and track trip costs. Sygic or another navigation app still handles the actual turn-by-turn navigation.',
+      intro:'Manni’s World helps you decide when and where it makes the most sense to refuel while travelling. It considers your route, range, fuel consumption and fuel prices to find sensible options along the way. Your navigation app gets you to the destination; Manni helps with fuel, costs and the right time to stop. This makes travelling calmer, clearer and usually cheaper.',
       gains:'What do you gain?', chips:['fuel prices along the route','a sensible time to refuel','before / after a border','motorway / off motorway','10 l safety reserve','trip costs','refuelling history'],
       quick:['Set up vehicle','Set route','Check recommendation','Refresh while driving','Enter data after refuelling'],
       s1:'First set up your vehicle', s1p:'In Vehicle & refuelling enter tank capacity, average consumption, current fuel and odometer. Manni uses these values to calculate your range.', normal:'Normal reserve', extreme:'Absolute lower limit', why8:'In a special case Manni may use at most about 20% of the 10-litre reserve if the next verified station is significantly more sensible. It must not recommend continuing below roughly 8 l.',

@@ -1,4 +1,4 @@
-# Manni's World 3.34 — Multilingual Help & Guide
+# Manni's World 3.35 — Multilingual Help & Guide
 
 Nadgradnja 3.33 z integriranimi navodili za uporabo.
 
