@@ -18,3 +18,5 @@ Testna URL različica po objavi na GitHub Pages:
 
 ## 3.36
 Main map UI cleanup: removed the 'Najnižja cena' display and the 'Najcenejše / Najbližje' selector. The central Refresh button remains. Smart Fuel and station data logic are unchanged. Help text updated accordingly in SL/DE/EN.
+
+3.37: cilj poti je premaknjen v zgornjo vrstico poleg gumba Osveži, bolj izrazit in viden na telefonu.

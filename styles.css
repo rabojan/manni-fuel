@@ -108,3 +108,11 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
 /* 3.36: clean main map — only the central Refresh control remains */
 .top-controls{display:flex!important;justify-content:center!important;align-items:center!important;left:12px!important;right:12px!important;grid-template-columns:none!important;pointer-events:none}
 .top-controls .refresh-chip{pointer-events:auto;margin:0 auto}
+
+/* 3.37 — destination moved into the main top bar next to Refresh */
+.top-controls{top:calc(74px + var(--safe-top));left:12px;right:12px;display:grid!important;grid-template-columns:minmax(0,1fr) 68px 56px;gap:10px;align-items:center;overflow:visible!important}
+.route-badge{position:static!important;z-index:auto!important;top:auto!important;left:auto!important;max-width:none!important;min-width:0;display:flex;align-items:center;gap:8px;height:56px;padding:0 16px;border-radius:18px;background:linear-gradient(135deg,#0f7861,#149372);color:#fff;font-size:15px;font-weight:900;box-shadow:0 10px 22px rgba(7,76,63,.26);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid rgba(255,255,255,.18)}
+.route-badge::before{content:'🎯';flex:0 0 auto;font-size:18px;filter:saturate(.9)}
+.top-controls .refresh-chip{justify-self:center}
+.floating-btn.inline-locate-btn{position:static!important;top:auto!important;right:auto!important;width:56px;height:56px;border-radius:18px;background:rgba(255,255,255,.97);color:var(--green);box-shadow:0 9px 22px rgba(0,0,0,.18);justify-self:end}
+@media(max-width:390px){.top-controls{grid-template-columns:minmax(0,1fr) 64px 52px;gap:8px}.route-badge{height:52px;padding:0 13px;font-size:13px;border-radius:16px}.route-badge::before{font-size:16px}.floating-btn.inline-locate-btn{width:52px;height:52px;border-radius:16px}}
