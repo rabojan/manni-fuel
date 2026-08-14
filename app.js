@@ -247,37 +247,55 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.30 — recommendation focus UX');
+console.info('Manni Fuel 3.31 — direct recommendation popup fix');
 
-// 3.11: allow recommendation module to show a remote station without coupling modules.
+// 3.31: recommendation focus — direct, immediate popup without reloading the station area.
 window.addEventListener('manni:show-station',async e=>{
   const s=e.detail;
   if(!s||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return;
   const lat=Number(s.lat),lon=Number(s.lon);
 
-  // Recommendation focus must be unmistakable: close route dialog first (handled by recommendation.js),
-  // then zoom to the exact station and open its popup immediately. Do not wait for a fresh station search.
-  state.programmaticUntil=Date.now()+2600;
-  setTimeout(()=>state.map.invalidateSize(),40);
-  state.map.setView([lat,lon],16,{animate:true});
-  setSearchCenter(lat,lon,false);
+  // Stop any pending map animation and suppress automatic area reload while focusing.
+  state.programmaticUntil=Date.now()+1800;
+  clearTimeout(state.autoTimer);
+  try{state.map.stop()}catch{}
+  state.map.invalidateSize();
+
+  // Jump immediately. Do NOT change search centre here: the purpose is to inspect one recommendation,
+  // not to trigger a fresh search and redraw all map stations.
+  state.map.setView([lat,lon],17,{animate:false});
 
   if(state.recommendationFocusMarker){
     try{state.map.removeLayer(state.recommendationFocusMarker)}catch{}
     state.recommendationFocusMarker=null;
   }
+  if(state.recommendationFocusPopup){
+    try{state.map.closePopup(state.recommendationFocusPopup)}catch{}
+    state.recommendationFocusPopup=null;
+  }
 
   const temp=Object.assign({},s,{lat,lon,distance:state.gps?km(state.gps.lat,state.gps.lon,lat,lon):null});
-  const icon=L.divIcon({className:'',html:`<div class="price-marker recommendation-focus">${esc(markerPrice(temp)||'⛽')}</div>`,iconSize:[92,36],iconAnchor:[46,18]});
-  const m=L.marker([lat,lon],{icon,zIndexOffset:2000}).addTo(state.map);
-  state.recommendationFocusMarker=m;
-  m.bindPopup(popupHtml(temp,null,!!state.gps,null,true),{closeButton:true,autoPan:true,maxWidth:310,autoPanPadding:[24,24]});
+  const icon=L.divIcon({className:'',html:`<div class="price-marker recommendation-focus">${esc(markerPrice(temp)||'⛽')}</div>`,iconSize:[96,38],iconAnchor:[48,19]});
+  state.recommendationFocusMarker=L.marker([lat,lon],{icon,zIndexOffset:3000}).addTo(state.map);
 
-  const enrich=async()=>{
-    m.setPopupContent(popupHtml(temp,null,!!state.gps,null,true));
+  // Open a standalone popup immediately. This does not depend on marker-cluster rendering.
+  const pop=L.popup({closeButton:true,autoPan:true,maxWidth:310,autoPanPadding:[28,28],offset:[0,-18]})
+    .setLatLng([lat,lon])
+    .setContent(popupHtml(temp,null,!!state.gps,null,true))
+    .openOn(state.map);
+  state.recommendationFocusPopup=pop;
+
+  // Enrich after it is already visible. Network delays can no longer prevent the popup from opening.
+  try{
     const [roadKm,hours]=await Promise.all([getRoadDistance(temp),getOpeningInfo(temp)]);
-    if(m.isPopupOpen())m.setPopupContent(popupHtml(temp,roadKm,false,hours,false));
-  };
-  m.on('click',enrich);
-  setTimeout(()=>{m.openPopup();enrich()},220);
+    if(state.recommendationFocusPopup===pop){
+      pop.setContent(popupHtml(temp,roadKm,false,hours,false));
+      pop.update();
+    }
+  }catch{
+    if(state.recommendationFocusPopup===pop){
+      pop.setContent(popupHtml(temp,null,false,{known:false,label:'Odpiralni čas ni znan'},false));
+      pop.update();
+    }
+  }
 });
