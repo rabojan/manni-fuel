@@ -1,15 +1,16 @@
-# Manni Fuel 3.33 — Personalisation & Languages beta
+# Manni's World 3.34 — Multilingual Help & Guide
 
-Based on the stable 3.32 trip-cost build. Smart Fuel, routing, station pricing, journey checkpoints and trip-cost algorithms are unchanged.
+Nadgradnja 3.33 z integriranimi navodili za uporabo.
 
-New in 3.33:
-- per-device language: Slovenščina / Deutsch / English
-- per-device app/vehicle display name
-- custom splash image selected from the phone photo library
-- custom splash image stored locally in IndexedDB, not uploaded anywhere
-- reset to the default Manni's World splash
-- UI number/date locale follows selected language
-- existing route, vehicle, refuelling and archive data remain local and unchanged
+## Novo
+- v Nastavitvah je gumb **Navodila za uporabo / Anleitung / User guide**
+- navodila so integrirana neposredno v aplikacijo
+- vsebina se samodejno preklopi glede na izbran jezik: **SL / DE / EN**
+- vizualni elementi navodil so izdelani v istem slogu kot Manni in se ne zanašajo na statične slike z napačnim jezikom
+- vodič razloži namen aplikacije, nastavitve vozila, pot, razliko do Sygica, obvoze in Osveži, Smart Fuel, meje, avtocesto, rezervo 10/8 l, preverjanje cen in črpalk, tankanja, stroške, ture in osebne nastavitve
 
-Upload all files to the GitHub Pages repository root and replace files with the same names.
-Test URL: ?v=333
+## Pomembno
+Smart Fuel algoritem, routing, Pumperly/OSM logika, tankanja in stroški poti niso vsebinsko spremenjeni.
+
+Testna URL različica po objavi na GitHub Pages:
+`https://rabojan.github.io/manni-fuel/?v=334`
