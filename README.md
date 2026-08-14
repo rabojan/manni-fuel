@@ -1,5 +1,13 @@
-Manni Fuel 3.17 — UX labels beta
+# Manni Fuel 3.18 — Price Sanity beta
 
-- UX-only change: recommendation cards are labelled PRIPOROČENO / PREJŠNJA MOŽNOST / KASNEJŠA MOŽNOST.
-- A later option below the normal 10 l reserve is labelled SKRAJNA MOŽNOST and shows a warning.
-- Recommendation algorithm is unchanged from 3.16.
+Spremembe po 3.17:
+- tuje valute v popupu: lokalna cena + približen EUR/l,
+- Najcenejše primerja normalizirano ceno v EUR,
+- lokalni sanity filter cen loči avtocestne in izven-avtocestne postaje,
+- sumljiv ekstrem (ob dovolj primerljivih lokalnih postajah) se skrije z zemljevida in iz Smart Fuel,
+- filter je konservativen: če ni dovolj primerljivih postaj, OSM klasifikacije ali FX podatka, postaje ne skrije.
+
+Beta pragovi:
+- najmanj 5 primerljivih postaj v istem tipu okolja,
+- lokalni radij 45 km,
+- manj kot 75 % lokalnega mediana ali več kot 145 % lokalnega mediana = izločitev.

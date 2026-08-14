@@ -1,4 +1,4 @@
-// Manni's World 3.16 — smart refuel window + route-spread alternatives
+// Manni's World 3.18 — smart refuel window + verified local price sanity
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -243,7 +243,12 @@
       const currencies=[...new Set(verifiedStations.map(x=>x.currency))];
       const fx=await fxTable(currencies);
       verifiedStations.forEach(x=>{x.priceEur=eurPrice(x,fx)});
-      const rankingPool=verifiedStations.filter(x=>Number.isFinite(x.priceEur));
+      let rankingPool=verifiedStations.filter(x=>Number.isFinite(x.priceEur));
+      if(window.ManniPriceSanity){
+        const sane=window.ManniPriceSanity.sanitizeVerifiedCandidates(rankingPool);
+        rankingPool=sane.visible||rankingPool;
+        if(sane.hidden?.length)console.info('Smart Fuel: izločene sumljive cene',sane.hidden.map(x=>({name:x.name,price:x.price,currency:x.currency,deviation:x.priceDeviation})));
+      }
       const missingFx=currencies.filter(c=>c!=='EUR'&&!Number.isFinite(fx[c]));
       const picked=pickRecommendations(rankingPool,{tank,fuel,avg,safeKm,extendedKm});
       if(!picked.main)throw new Error('Nisem našel dovolj zanesljive črpalke za priporočilo.');
@@ -270,7 +275,8 @@
       const previous=localStorage.getItem(lastKey);
       const changed=previous&&previous!==main.id;
       localStorage.setItem(lastKey,main.id);
-      ui.status.textContent=`✓ ${verifiedCount} preverjenih kandidatov · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
+      const priceRejected=Math.max(0,verifiedStations.filter(x=>Number.isFinite(x.priceEur)).length-rankingPool.length);
+      ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''}`;
     }catch(e){ui.main.innerHTML=`<div class="recommend-empty">${esc(e.message||'Priporočila ni bilo mogoče izračunati.')}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent='Priporočilo ni na voljo.'}
     finally{busy=false}
   }

@@ -12,7 +12,7 @@ const state={
   radiusKm:Number(localStorage.getItem('radiusKm')||20),
   fuel:localStorage.getItem('fuel')||'B7',
   apiBase:(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,''),
-  stations:[],markerLayer:null,userMarker:null,stationMarkers:new Map(),hoursCache:new Map(),
+  stations:[],rawStations:[],hiddenPriceStations:[],fx:{EUR:1},markerLayer:null,userMarker:null,stationMarkers:new Map(),hoursCache:new Map(),
   autoTimer:null,programmaticUntil:0,requestSeq:0,controller:null
 };
 const $=id=>document.getElementById(id);
@@ -26,7 +26,8 @@ function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&l
 function km(a,b,c,d){const R=6371,p=Math.PI/180,da=(c-a)*p,dl=(d-b)*p,x=Math.sin(da/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function ago(iso){if(!iso)return'';const t=new Date(iso).getTime();if(!Number.isFinite(t))return'';const m=Math.max(0,Math.round((Date.now()-t)/60000));if(m<2)return'pravkar';if(m<60)return`${m} min`;const h=Math.round(m/60);if(h<48)return`${h} h`;return`${Math.round(h/24)} d`}
 function slNum(v,d=2){return new Intl.NumberFormat('sl-SI',{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(v))}
-function price(s){if(s.price==null)return null;return `${slNum(s.price,2)} ${s.currency==='EUR'?'€/l':(s.currency||'EUR')+'/l'}`}
+function price(s){if(s.price==null)return null;const native=`${slNum(s.price,2)} ${s.currency==='EUR'?'€/l':(s.currency||'EUR')+'/l'}`;if(s.currency!=='EUR'&&Number.isFinite(s.priceEur))return `${native} · ≈ ${slNum(s.priceEur,2)} €/l`;return native}
+function markerPrice(s){if(s.price==null)return null;return `${slNum(s.price,2)} ${s.currency==='EUR'?'€':(s.currency||'EUR')}`}
 function nav(s){return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.lat+','+s.lon)}&travelmode=driving`}
 
 function normText(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
@@ -168,10 +169,16 @@ async function loadStations(){
   const seq=++state.requestSeq;
   try{
     const features=await fetchStations();if(seq!==state.requestSeq)return;
-    state.stations=dedupe(normalize(features));render();
-  }catch(e){if(e.name==='AbortError')return;console.warn(e);if(seq!==state.requestSeq)return;state.stations=[];render()}
+    const rows=dedupe(normalize(features));state.rawStations=rows;
+    if(window.ManniPriceSanity){
+      const sanity=await window.ManniPriceSanity.sanitizeForMap(rows);if(seq!==state.requestSeq)return;
+      state.fx=sanity.fx||{EUR:1};state.hiddenPriceStations=sanity.hidden||[];state.stations=sanity.visible||rows;
+      // Preserve normalized EUR values returned by the sanity layer.
+    }else{state.stations=rows;state.hiddenPriceStations=[]}
+    render();
+  }catch(e){if(e.name==='AbortError')return;console.warn(e);if(seq!==state.requestSeq)return;state.stations=[];state.hiddenPriceStations=[];render()}
 }
-function markerIcon(s){const t=price(s)||'⛽';return L.divIcon({className:'',html:`<div class="price-marker">${esc(t)}</div>`,iconSize:[76,28],iconAnchor:[38,14]})}
+function markerIcon(s){const t=markerPrice(s)||'⛽';return L.divIcon({className:'',html:`<div class="price-marker">${esc(t)}</div>`,iconSize:[76,28],iconAnchor:[38,14]})}
 
 async function getRoadDistance(s){
   if(!state.gps)return null;
@@ -193,8 +200,8 @@ function render(){
   state.markerLayer.clearLayers();state.stationMarkers.clear();
   const arr=[...state.stations];
   const priced=arr.filter(s=>s.price!=null);
-  const best=priced.length?priced.reduce((a,b)=>a.price<=b.price?a:b):null;
-  els.best.textContent=best?price(best):'—';
+  const best=priced.length?priced.reduce((a,b)=>(a.priceEur??Infinity)<=(b.priceEur??Infinity)?a:b):null;
+  els.best.textContent=best?(best.currency==='EUR'?`${slNum(best.price,2)} €`:(Number.isFinite(best.priceEur)?`≈ ${slNum(best.priceEur,2)} €`:markerPrice(best))):'—';
   arr.forEach(s=>{
     const m=L.marker([s.lat,s.lon],{icon:markerIcon(s)});
     m.bindPopup(popupHtml(s,null,!!state.gps,null,true),{closeButton:true,autoPan:true,maxWidth:290});
@@ -216,8 +223,8 @@ async function focusStation(s){
 async function applyStationAction(mode){
   if(!state.stations.length)return;
   if(mode==='price'){
-    const priced=state.stations.filter(s=>s.price!=null);if(!priced.length)return;
-    const min=Math.min(...priced.map(s=>s.price));const tied=priced.filter(s=>Math.abs(s.price-min)<1e-9).sort((a,b)=>a.distance-b.distance);
+    const priced=state.stations.filter(s=>s.price!=null&&Number.isFinite(s.priceEur));if(!priced.length)return;
+    const min=Math.min(...priced.map(s=>s.priceEur));const tied=priced.filter(s=>Math.abs(s.priceEur-min)<1e-9).sort((a,b)=>a.distance-b.distance);
     await focusStation(tied[0]);return;
   }
   if(mode==='distance'){
@@ -240,7 +247,7 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.16 — refresh preserves map view; startup/location zoom 14');
+console.info('Manni Fuel 3.18 — local price sanity + EUR popup conversion');
 
 // 3.11: allow recommendation module to show a remote station without coupling modules.
 window.addEventListener('manni:show-station',async e=>{
