@@ -416,6 +416,11 @@
       if(!picked.main)throw new Error('Nisem našel dovolj zanesljive črpalke za priporočilo.');
       const main=picked.main,alts=picked.alts;
       window.__manniRecommendations=[main,...alts];
+      window.__manniSmartFuelState={
+        main,alts,reasonType:picked.reasonType||null,opportunity:picked.opportunity||null,border:picked.border||null,
+        fuelLitres:fuel,averageConsumption:avg,tankLitres:tank,safeKm,extendedKm,updatedAt:new Date().toISOString()
+      };
+      window.dispatchEvent(new CustomEvent('manni:recommendation-updated',{detail:window.__manniSmartFuelState}));
       ui.main.innerHTML=card(main,true,{fuel,avg},'PRIPOROČENO');
       ui.alts.innerHTML=alts.map(x=>{const a=fuelAtArrival(fuel,avg,x.along);let label=x._altRole==='earlier'?'PREJŠNJA MOŽNOST':'KASNEJŠA MOŽNOST';if(x._altRole==='later'&&a<(RESERVE_L-0.05))label='SKRAJNA MOŽNOST';return card(x,false,{fuel,avg},label)}).join('');
 
@@ -450,7 +455,7 @@
       const borderStatus=picked.border?` · meja ${countryName(picked.border.transition.from.country)} → ${countryName(picked.border.transition.to.country)} upoštevana`:'';
       ui.status.textContent=`✓ ${rankingPool.length} preverjenih kandidatov z verodostojno ceno · OSM ${verifyMeta.cached?'cache '+verifyMeta.cached:'v živo'}${priceRejected?` · ${priceRejected} sumljivih cen izločenih`:''}${borderStatus} · normalno okno tankanja približno ${Math.round(Math.max(0,safeKm-NORMAL_ZONE_KM))}–${Math.round(safeKm)} km${changed?' · priporočilo se je po osvežitvi spremenilo':''} · ${Math.max(1,Math.round((Date.now()-runStarted)/1000))} s`;
       lastCompletedAt=Date.now();
-    }catch(e){const msg=e.message||'Priporočila ni bilo mogoče izračunati.';ui.main.innerHTML=`<div class="recommend-empty">${esc(msg)}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent=`Priporočilo ni na voljo · ${msg} · ${Math.max(1,Math.round((Date.now()-runStarted)/1000))} s`;lastCompletedAt=Date.now()}
+    }catch(e){const msg=e.message||'Priporočila ni bilo mogoče izračunati.';window.__manniSmartFuelState=null;window.dispatchEvent(new CustomEvent('manni:recommendation-updated',{detail:null}));ui.main.innerHTML=`<div class="recommend-empty">${esc(msg)}</div>`;ui.alts.innerHTML='';ui.reason.textContent='';ui.status.textContent=`Priporočilo ni na voljo · ${msg} · ${Math.max(1,Math.round((Date.now()-runStarted)/1000))} s`;lastCompletedAt=Date.now()}
     finally{
       busy=false;
       // Requests that arrive during the same calculation are already represented by the latest route/fuel state.

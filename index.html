@@ -89,6 +89,25 @@
           <p id="recommendReason" class="recommend-reason"></p>
         </section>
 
+        <section id="tripCostPanel" class="trip-cost-panel" hidden>
+          <div class="trip-cost-head">
+            <div><span class="eyebrow">Stroški poti</span><strong id="tripCostStatus">Ocena še ni izračunana.</strong></div>
+          </div>
+          <div class="trip-cost-hero">
+            <div><strong id="tripCostDistance">—</strong><span>predvidena razdalja</span></div>
+            <div><strong id="tripCostTotal">—</strong><span>predviden strošek goriva</span></div>
+          </div>
+          <div class="trip-cost-grid">
+            <div><span>Predvidena poraba</span><strong id="tripCostLitres">—</strong></div>
+            <div><span>Do zdaj plačano</span><strong id="tripCostPaid">—</strong></div>
+            <div><span>Še do cilja</span><strong id="tripCostRemaining">—</strong></div>
+            <div><span>Strošek / 100 km</span><strong id="tripCostPer100">—</strong></div>
+            <div><span>Dejanska poraba</span><strong id="tripCostMeasured">—</strong></div>
+            <div><span>Smart Fuel prihranek</span><strong id="tripCostSaving">—</strong></div>
+          </div>
+          <p id="tripCostNote" class="trip-cost-note"></p>
+        </section>
+
         <div class="route-actions"><button id="clearRouteBtn" type="button" class="secondary-btn">Počisti</button><button id="saveRouteBtn" type="button" class="save-btn">Shrani pot</button></div>
       </form>
     </dialog>
@@ -221,7 +240,8 @@
 <script src="trips.js?v=3.24.0"></script>
 <script src="journey.js?v=3.24.0"></script>
 <script src="price-sanity.js?v=3.24.0"></script>
-<script src="recommendation.js?v=3.27.0"></script>
-<script src="app.js?v=3.24.0"></script>
+<script src="recommendation.js?v=3.32.0"></script>
+<script src="trip-costs.js?v=3.32.0"></script>
+<script src="app.js?v=3.32.0"></script>
 </body>
 </html>

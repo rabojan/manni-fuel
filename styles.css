@@ -87,3 +87,8 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
 /* 3.30 recommendation focus: make the selected Smart Fuel station unmistakable. */
 .price-marker.recommendation-focus{font-size:13px;font-weight:950;border-width:3px;box-shadow:0 0 0 7px rgba(244,122,24,.22),0 8px 22px rgba(0,0,0,.28);animation:manniRecPulse 1.15s ease-in-out 2}
 @keyframes manniRecPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.13)}}
+
+/* 3.32 — Stroški poti */
+.trip-cost-panel{margin-top:16px;padding:15px;border:1px solid rgba(17,24,39,.10);border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(17,24,39,.06)}
+.trip-cost-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.trip-cost-head strong{display:block;margin-top:2px;font-size:15px;line-height:1.35}.trip-cost-hero{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.trip-cost-hero>div{padding:13px 12px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa}.trip-cost-hero strong{display:block;font-size:20px;line-height:1.1}.trip-cost-hero span,.trip-cost-grid span{display:block;margin-top:4px;font-size:11px;color:#6b7280}.trip-cost-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.trip-cost-grid>div{padding:10px 11px;border-radius:12px;background:#f8fafc;border:1px solid #eef2f7}.trip-cost-grid strong{display:block;font-size:14px;line-height:1.25}.trip-cost-note{margin:11px 1px 0;font-size:12px;line-height:1.45;color:#6b7280}.trip-cost-positive{color:#15803d}.trip-cost-estimate{color:#9a3412}
+@media(max-width:430px){.trip-cost-hero{grid-template-columns:1fr}.trip-cost-grid{grid-template-columns:1fr 1fr}.trip-cost-hero strong{font-size:19px}}

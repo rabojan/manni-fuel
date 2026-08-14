@@ -247,7 +247,7 @@ els.refresh.addEventListener('click',()=>{
 els.locate.addEventListener('click',()=>locate({load:true,recenter:true}));
 els.sort.addEventListener('change',()=>applyStationAction(els.sort.value));
 initMap();locate({load:true,startup:true});
-console.info('Manni Fuel 3.31 — direct recommendation popup fix');
+console.info('Manni Fuel 3.32 — trip cost dashboard beta');
 
 // 3.31: recommendation focus — direct, immediate popup without reloading the station area.
 window.addEventListener('manni:show-station',async e=>{

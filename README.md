@@ -1,12 +1,7 @@
-# Manni Fuel 3.31 — direct recommendation popup fix
+# Manni Fuel 3.32 — Stroški poti beta
 
-- Smart Fuel logic is unchanged from 3.29.
-- `Pokaži na zemljevidu` now closes the route dialog, zooms directly to the selected station (zoom 16), highlights it and opens its popup automatically.
-- The popup immediately exposes station name, price, distance/opening-hours enrichment and the `Navigiraj` action.
-- The focused recommendation uses a temporary high-priority marker so it remains obvious even when many other stations exist nearby.
-
-
-## 3.31
-- Pokaži na zemljevidu zapre Pot in takoj skoči na priporočeno črpalko brez animacije.
-- Popup se odpre neposredno na koordinati, neodvisno od cluster markerjev in novega nalaganja postaj.
-- Odpiralni čas in cestna razdalja se dopolnita naknadno, zato mreža ne more zadržati odprtja popupa.
+- Adds a read-only **Stroški poti** dashboard inside Pot.
+- Shows predicted trip distance, fuel consumption, fuel-cost range, actual paid fuel, estimated cash still needed, cost/100 km, measured consumption and current Smart Fuel saving estimate.
+- Uses the current route, current estimated fuel, refuelling log, 10 l arrival reserve, EC national diesel references already used by Price Sanity, and current Smart Fuel recommendation.
+- Recalculates after route validation, refuelling, trip changes and Smart Fuel updates.
+- Does not change map, route, tanking, verification or Smart Fuel selection logic.
