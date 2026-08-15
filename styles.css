@@ -162,3 +162,13 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
 @media(max-width:390px){
   .top-controls{grid-template-columns:minmax(0,1fr) 64px 52px!important}
 }
+
+/* 3.35.7 — standalone splash only.
+   Home Screen viewport is taller than Safari; prevent object-fit:cover from cropping
+   the left/right side of the original 9:16 splash. No other layout is changed. */
+@media (display-mode: standalone) {
+  .welcome-image {
+    object-fit: fill!important;
+    object-position: center center!important;
+  }
+}
