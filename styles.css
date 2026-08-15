@@ -153,3 +153,12 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
   align-self:center!important;
   margin:0!important;
 }
+
+/* 3.35.6 — surgical fix: the top row has exactly 3 visible items:
+   destination | refresh | current location. Nothing else changes. */
+.top-controls{
+  grid-template-columns:minmax(0,1fr) 68px 52px!important;
+}
+@media(max-width:390px){
+  .top-controls{grid-template-columns:minmax(0,1fr) 64px 52px!important}
+}
