@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="styles.css?v=3.33.0" />
+  <link rel="stylesheet" href="styles.css?v=3.35.4" />
 </head>
 <body>
   <div id="welcomeScreen" class="welcome-screen" aria-label="Dobrodošli v Manni's World — Breda & Bojan">
@@ -33,10 +33,11 @@
     </header>
 
     <div class="top-controls">
-      <div class="filter-chip price-chip"><span class="chip-label">Najnižja</span><strong id="bestPrice">—</strong></div>
+      <div id="routeBadge" class="route-badge" hidden></div>
+      <div class="filter-chip price-chip top-control-data-only" aria-hidden="true"><span class="chip-label">Najnižja</span><strong id="bestPrice">—</strong></div>
       <button id="refreshBtn" class="filter-chip refresh-chip" aria-label="Osveži" title="Osveži">↻</button>
-      <div class="filter-chip sort-chip">
-        <select id="sortSelect" aria-label="Razvrsti">
+      <div class="filter-chip sort-chip top-control-hidden-slot" aria-hidden="true">
+        <select id="sortSelect" aria-label="Razvrsti" tabindex="-1">
           <option value="price">Najcenejše</option>
           <option value="distance">Najbližje</option>
         </select>
@@ -44,8 +45,6 @@
     </div>
 
     <button id="locateBtn" class="floating-btn" aria-label="Moja lokacija">➤</button>
-
-    <div id="routeBadge" class="route-badge" hidden></div>
 
     <dialog id="routeDialog">
       <form method="dialog" class="settings-card route-card" onsubmit="return false">
