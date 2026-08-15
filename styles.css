@@ -135,3 +135,21 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
   text-overflow:ellipsis;
 }
 .top-controls .route-badge[hidden]{display:none!important}
+
+
+/* 3.35.5 — isolated change: move current-location button into the existing top row.
+   No viewport, safe-area, map or application logic changes. */
+.top-controls .top-control-hidden-slot{display:none!important}
+.top-controls .floating-btn{
+  position:static!important;
+  z-index:auto!important;
+  top:auto!important;
+  right:auto!important;
+  width:52px!important;
+  height:52px!important;
+  min-width:52px!important;
+  border-radius:26px!important;
+  justify-self:end!important;
+  align-self:center!important;
+  margin:0!important;
+}
