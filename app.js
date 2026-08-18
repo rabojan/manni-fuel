@@ -12,7 +12,7 @@ const state={
   radiusKm:Number(localStorage.getItem('radiusKm')||20),
   fuel:localStorage.getItem('fuel')||'B7',
   apiBase:(localStorage.getItem('manniApiBase')||'https://manni-fuel-api.ratejbojan.workers.dev').replace(/\/$/,''),
-  stations:[],rawStations:[],hiddenPriceStations:[],fx:{EUR:1},markerLayer:null,userMarker:null,stationMarkers:new Map(),hoursCache:new Map(),
+  stations:[],rawStations:[],hiddenPriceStations:[],fx:{EUR:1},markerLayer:null,userMarker:null,routeLine:null,routeFitPending:false,stationMarkers:new Map(),hoursCache:new Map(),
   autoTimer:null,programmaticUntil:0,requestSeq:0,controller:null
 };
 const $=id=>document.getElementById(id);
@@ -235,6 +235,31 @@ async function applyStationAction(mode){
     await focusStation(tested[0]?.road!=null?tested[0].s:base[0]);
   }
 }
+
+
+// 3.59 — show the calculated Manni route as a blue line on the Leaflet map.
+function clearRouteLine(){
+  if(state.routeLine){try{state.map?.removeLayer(state.routeLine)}catch{}state.routeLine=null}
+}
+function drawRouteLine(coords){
+  if(!state.map||!Array.isArray(coords)||coords.length<2)return;
+  const latLngs=coords.map(c=>[Number(c[1]),Number(c[0])]).filter(c=>Number.isFinite(c[0])&&Number.isFinite(c[1]));
+  if(latLngs.length<2)return;
+  clearRouteLine();
+  state.routeLine=L.polyline(latLngs,{color:'#2f80ed',weight:5,opacity:.9,lineCap:'round',lineJoin:'round',interactive:false}).addTo(state.map);
+  state.routeLine.bringToBack();
+  if(state.routeFitPending){
+    state.routeFitPending=false;
+    state.programmaticUntil=Date.now()+1400;
+    state.map.fitBounds(state.routeLine.getBounds(),{paddingTopLeft:[26,155],paddingBottomRight:[26,34],animate:false});
+  }
+}
+window.addEventListener('manni:route-geometry',e=>drawRouteLine(e.detail?.coordinates));
+window.addEventListener('manni:route-changed',()=>{
+  const r=window.ManniStorage?.get?.().route;
+  if(!r?.destination){state.routeFitPending=false;clearRouteLine();return}
+  state.routeFitPending=true;
+});
 
 $('settingsBtn').addEventListener('click',()=>{els.radius.value=state.radiusKm;els.fuel.value=state.fuel;els.api.value=state.apiBase;els.settings.showModal()});
 $('saveSettingsBtn').addEventListener('click',e=>{e.preventDefault();state.radiusKm=Number(els.radius.value);state.fuel=els.fuel.value;state.apiBase=(els.api.value||'').trim().replace(/\/$/,'');localStorage.setItem('radiusKm',state.radiusKm);localStorage.setItem('fuel',state.fuel);localStorage.setItem('manniApiBase',state.apiBase);els.settings.close();if(state.center){loadStations()}});
