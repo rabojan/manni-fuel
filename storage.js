@@ -2,10 +2,10 @@
 // Schema 6 adds confirmed route points (label + country + coordinates) while preserving old data.
 (function(){
   const KEY='manni.world.data';
-  const SCHEMA_VERSION=6;
+  const SCHEMA_VERSION=7;
   const defaults={
     schemaVersion:SCHEMA_VERSION,
-    route:{ destination:'', destinationPoint:null, via:[], viaPoints:[], updatedAt:null },
+    route:{ startMode:'current', start:'Moja trenutna lokacija', startPoint:null, destination:'', destinationPoint:null, via:[], viaPoints:[], updatedAt:null },
     vehicle:{tankLitres:null,averageConsumption:null,reserveLitres:10,currentFuelLitres:null,odometerKm:null,updatedAt:null},
     fuelLog:[],activeTrip:null,tripArchive:[],
     journey:{startCoord:null,nextIndex:0,resolvedPoints:[],routeValid:null,routeSegments:[],validationMessage:null,lastPosition:null,lastCheckpointAt:null,lastSegmentKm:null,trackedKm:0,estimatedFuelLitres:null,checkpoints:[],lastRouteKm:null,lastNextKm:null,lastDurationMin:null,updatedAt:null}
@@ -21,7 +21,7 @@
   function normalizeRoute(r){
     const via=Array.isArray(r?.via)?r.via.map(String).filter(Boolean):[];
     const viaPoints=Array.isArray(r?.viaPoints)?r.viaPoints.map(normalizePoint).filter(Boolean):[];
-    return {destination:String(r?.destination||''),destinationPoint:normalizePoint(r?.destinationPoint),via,viaPoints,updatedAt:r?.updatedAt||null};
+    const startPoint=normalizePoint(r?.startPoint);const startMode=r?.startMode==='manual'&&startPoint?'manual':'current';return {startMode,start:startMode==='manual'?String(r?.start||startPoint?.label||''): 'Moja trenutna lokacija',startPoint:startMode==='manual'?startPoint:null,destination:String(r?.destination||''),destinationPoint:normalizePoint(r?.destinationPoint),via,viaPoints,updatedAt:r?.updatedAt||null};
   }
   function normalizeTrip(t){if(!t||typeof t!=='object')return null;return {id:String(t.id||('trip-'+Date.now()+'-'+Math.random().toString(36).slice(2,8))),name:String(t.name||'Tura'),startedAt:t.startedAt||new Date().toISOString(),endedAt:t.endedAt||null,startOdometerKm:numOrNull(t.startOdometerKm),endOdometerKm:numOrNull(t.endOdometerKm),route:normalizeRoute(t.route||{}),vehicleSnapshot:t.vehicleSnapshot&&typeof t.vehicleSnapshot==='object'?{tankLitres:numOrNull(t.vehicleSnapshot.tankLitres),averageConsumption:numOrNull(t.vehicleSnapshot.averageConsumption),reserveLitres:10}:null,fuelLog:Array.isArray(t.fuelLog)?t.fuelLog.map(normalizeEntry).filter(Boolean):[],stats:t.stats&&typeof t.stats==='object'?{distanceKm:numOrNull(t.stats.distanceKm),totalLitres:numOrNull(t.stats.totalLitres),totalCostEur:numOrNull(t.stats.totalCostEur),averagePricePerLitre:numOrNull(t.stats.averagePricePerLitre),measuredConsumption:numOrNull(t.stats.measuredConsumption)}:null}}
   function normalizeCoord(c){if(!c||typeof c!=='object')return null;const lat=numOrNull(c.lat),lon=numOrNull(c.lon);return Number.isFinite(lat)&&Number.isFinite(lon)?{lat,lon}:null}

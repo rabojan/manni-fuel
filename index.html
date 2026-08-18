@@ -54,7 +54,10 @@
           </div>
           <button id="routeCloseBtn" type="button" class="close-btn" aria-label="Zapri">✕</button>
         </div>
-        <div class="route-start"><span>Začetek</span><strong>📍 Moja trenutna lokacija</strong></div>
+        <div class="route-start-block">
+          <div class="route-start-head"><span>Začetek</span><button id="useCurrentStartBtn" type="button" class="mini-current-btn">📍 Moja trenutna lokacija</button></div>
+          <div class="route-autocomplete-wrap"><input id="routeStart" class="via-input route-start-input" type="text" autocomplete="off" placeholder="Moja trenutna lokacija ali vpiši kraj" /><span id="routeStartMark" class="route-confirm-mark">📍</span></div>
+        </div>
         <label class="field">
           <span>Cilj</span>
           <input id="routeDestination" type="text" autocomplete="off" placeholder="npr. Tallinn" />
@@ -97,9 +100,6 @@
           </div>
           <div class="trip-cost-grid">
             <div><span>Predvidena poraba</span><strong id="tripCostLitres">—</strong></div>
-            <div><span>Do zdaj plačano</span><strong id="tripCostPaid">—</strong></div>
-            <div><span>Še do cilja</span><strong id="tripCostRemaining">—</strong></div>
-            <div><span>Strošek / 100 km</span><strong id="tripCostPer100">—</strong></div>
             <div><span>Dejanska poraba</span><strong id="tripCostMeasured">—</strong></div>
             <div><span>Smart Fuel prihranek</span><strong id="tripCostSaving">—</strong></div>
           </div>

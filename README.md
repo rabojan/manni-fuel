@@ -1,4 +1,4 @@
-# Manni's World 3.35 — Multilingual Help & Guide
+# Manni's World 3.58 — Multilingual Help & Guide
 
 Nadgradnja 3.33 z integriranimi navodili za uporabo.
 
@@ -14,3 +14,9 @@ Smart Fuel algoritem, routing, Pumperly/OSM logika, tankanja in stroški poti ni
 
 Testna URL različica po objavi na GitHub Pages:
 `https://rabojan.github.io/manni-fuel/?v=334`
+
+
+## 3.58
+- Pot: začetek je lahko Moja trenutna lokacija ali poljubno potrjeno mesto.
+- Stroški poti: odstranjeni Do zdaj plačano, Še do cilja in Strošek / 100 km.
+- Dejanska poraba ostaja; izračun full-to-full je nespremenjen.

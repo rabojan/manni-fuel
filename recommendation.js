@@ -183,6 +183,7 @@
     // user-confirmed route points, so a nearby country that is not on the chosen route cannot hijack border logic.
     const near=[...stations].filter(x=>x.country&&x.along>=0&&x.along<=80).sort((a,b)=>a.along-b.along);
     if(near.length)add(near[0].country);
+    if(route?.startMode==='manual'&&route?.startPoint)add(route.startPoint.countryCode);
     for(const pt of [...(route?.viaPoints||[]),route?.destinationPoint].filter(Boolean))add(pt.countryCode);
     return out;
   }
@@ -369,13 +370,13 @@
       const d=window.ManniStorage.get(),route=d.route||{},avg=Number(d.vehicle?.averageConsumption),fuel=liveFuel(d),tank=Number(d.vehicle?.tankLitres),reserve=RESERVE_L;
       if(!route.destination)throw new Error('Najprej nastavi cilj poti.');
       if(!Number.isFinite(avg)||avg<=0||!Number.isFinite(fuel))throw new Error('Vnesi trenutno gorivo in povprečno porabo.');
-      if(!route.destinationPoint || (route.via||[]).length!==(route.viaPoints||[]).length)throw new Error('Pot vsebuje nepotrjene točke. Odpri Pot in jih izberi iz predlogov.');
+      if(!route.destinationPoint || (route.via||[]).length!==(route.viaPoints||[]).length || (route.startMode==='manual'&&!route.startPoint))throw new Error('Pot vsebuje nepotrjene točke. Odpri Pot in jih izberi iz predlogov.');
       if(d.journey?.routeValid===false)throw new Error('Pot ni potrjena. Najprej popravi označeni odsek poti.');
       const safeKm=Math.max(0,(fuel-reserve)/avg*100);
       const extendedKm=Math.max(safeKm,Math.max(0,(fuel-ABSOLUTE_MIN_L)/avg*100));
       if(extendedKm<15)throw new Error('Doseg do absolutne 8-litrske meje je zelo majhen — izberi najbližjo preverjeno črpalko.');
 
-      const start=await pos();
+      const start=route.startMode==='manual'&&route.startPoint?{lat:Number(route.startPoint.lat),lon:Number(route.startPoint.lon)}:await pos();
       let pts=(d.journey?.resolvedPoints||[]).slice(d.journey?.nextIndex||0).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
       if(!pts.length)pts=[...(route.viaPoints||[]),route.destinationPoint].map(p=>({lat:Number(p.lat),lon:Number(p.lon),name:p.label||p.name})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
       const rt=await routeGeometry([start,...pts]),cum=cumulative(rt.line),samples=sample(rt.line,cum,Math.min(rt.km,extendedKm+80));

@@ -4,7 +4,7 @@
   const $=id=>document.getElementById(id);
   const ui={
     panel:$('tripCostPanel'),status:$('tripCostStatus'),distance:$('tripCostDistance'),total:$('tripCostTotal'),litres:$('tripCostLitres'),
-    paid:$('tripCostPaid'),remaining:$('tripCostRemaining'),per100:$('tripCostPer100'),measured:$('tripCostMeasured'),saving:$('tripCostSaving'),note:$('tripCostNote')
+    measured:$('tripCostMeasured'),saving:$('tripCostSaving'),note:$('tripCostNote')
   };
   if(!ui.panel||!window.ManniStorage)return;
   const RESERVE_L=10;
@@ -73,33 +73,26 @@
     ui.panel.hidden=false;
     if(!Number.isFinite(remainingKm)||remainingKm<=0||!Number.isFinite(avg)||avg<=0||!Number.isFinite(fuel)){
       ui.status.textContent='Čakam na veljavno pot in podatke o Manniju.';
-      [ui.distance,ui.total,ui.litres,ui.paid,ui.remaining,ui.per100,ui.measured,ui.saving].forEach(x=>x.textContent='—');
+      [ui.distance,ui.total,ui.litres,ui.measured,ui.saving].forEach(x=>x.textContent='—');
       ui.note.textContent='Ko je Pot preračunana in sta vnesena gorivo ter povprečna poraba, se stroški izračunajo samodejno.';return;
     }
-    const log=activeLog(d),paid=paidSoFar(log),done=distanceDone(d),totalKm=done+remainingKm;
+    const log=activeLog(d),done=d.route?.startMode==='manual'?0:distanceDone(d),totalKm=done+remainingKm;
     const measured=measuredConsumption(log),usedAvg=Number.isFinite(measured)?measured:avg;
     const remainingLitres=remainingKm*usedAvg/100,totalLitres=totalKm*usedAvg/100;
     const benchmark=routeBenchmark(d);
-    const futureBuyLitres=Math.max(0,remainingLitres+RESERVE_L-fuel); // preserve agreed 10 l at arrival
-    const futureCash=Number.isFinite(benchmark)?futureBuyLitres*benchmark:null;
     const totalEconomic=Number.isFinite(benchmark)?totalLitres*benchmark:null;
     const low=Number.isFinite(totalEconomic)?totalEconomic*.96:null,high=Number.isFinite(totalEconomic)?totalEconomic*1.04:null;
-    const per100=Number.isFinite(benchmark)?usedAvg*benchmark:null;
     const saving=smartSaving(d);
 
     ui.distance.textContent=km(totalKm);
     ui.total.textContent=Number.isFinite(low)&&Number.isFinite(high)?`${eur(low)}–${eur(high)}`:'—';
     ui.litres.textContent=l(totalLitres);
-    ui.paid.textContent=eur(paid);
-    ui.remaining.textContent=Number.isFinite(futureCash)?`≈ ${eur(futureCash)}`:'—';
-    ui.per100.textContent=Number.isFinite(per100)?`${eur(per100)} / 100 km`:'—';
     ui.measured.textContent=Number.isFinite(measured)?cons(measured):`${cons(avg)} (nast.)`;
     ui.saving.textContent=Number.isFinite(saving)&&saving>0?`≈ ${eur(saving)}`:'—';
     ui.saving.classList.toggle('trip-cost-positive',Number.isFinite(saving)&&saving>0);
     const source=Number.isFinite(benchmark)?`ocenjena povprečna cena po preostali poti ${fmt(benchmark,2)} €/l`:'cena po poti še ni dovolj znana';
     ui.status.textContent=`Dinamična ocena · ${source}`;
-    const paidText=d.activeTrip?'»Do zdaj plačano« šteje tankanja od začetka aktivne ture.':'»Do zdaj plačano« trenutno šteje vsa ne-arhivirana tankanja.';
-    ui.note.textContent=`Predvideni strošek je razpon ±4 %, ker se cene med potjo spreminjajo. »Še do cilja« upošteva trenutno gorivo in 10 l rezerve ob prihodu. ${paidText} Smart Fuel prihranek je trenutno ocenjen za naslednje priporočeno tankanje in se po Osveži lahko spremeni.`;
+    ui.note.textContent='Predvideni strošek je razpon ±4 %, ker se cene med potjo spreminjajo. Dejanska poraba se izračuna med dvema polnima tankanjema; dokler tak podatek še ni na voljo, je prikazana nastavljena poraba. Smart Fuel prihranek se po Osveži lahko spremeni.';
   }
   ['manni:route-opened','manni:route-validated','manni:fuel-changed','manni:trip-changed','manni:recommendation-updated'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(render,80)));
   render();

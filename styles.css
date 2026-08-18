@@ -163,12 +163,5 @@ dialog{border:0;padding:0;width:min(92vw,470px);border-radius:22px;box-shadow:0 
   .top-controls{grid-template-columns:minmax(0,1fr) 64px 52px!important}
 }
 
-/* 3.35.7 — standalone splash only.
-   Home Screen viewport is taller than Safari; prevent object-fit:cover from cropping
-   the left/right side of the original 9:16 splash. No other layout is changed. */
-@media (display-mode: standalone) {
-  .welcome-image {
-    object-fit: fill!important;
-    object-position: center center!important;
-  }
-}
+/* 3.58 — flexible route start; isolated route-dialog styles only */
+.route-start-block{margin:2px 0 14px}.route-start-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.route-start-head>span{font-weight:750}.mini-current-btn{border:0;background:#eef8f5;color:var(--green2);border-radius:999px;padding:9px 12px;font-size:11px;font-weight:850;white-space:nowrap}.route-start-input{width:100%;padding-right:38px!important}.route-current-start{background:#f4faf7!important;border-color:#cfe4da!important;color:#173d35!important;font-weight:800}.trip-cost-grid>div{min-width:0}
