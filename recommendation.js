@@ -1,4 +1,4 @@
-// Manni's World 3.28 — Smart Fuel performance: bounded requests, no duplicate reruns
+// Manni's World 3.36 — Smart Fuel price-trust + sane refuel timing
 // IMPORTANT: the map may show all Pumperly stations. This module is deliberately stricter:
 // it recommends only stations whose physical location is independently confirmed in OSM.
 (function(){
@@ -176,6 +176,11 @@
   };
   function median(v){const a=v.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
   function countryName(c){return COUNTRY_NAMES[String(c||'').toUpperCase()]||String(c||'').toUpperCase()}
+  function osmCountry(osm){
+    const tags=osm?.tags||{};
+    const raw=tags['addr:country']||tags['ISO3166-1']||tags['is_in:country_code']||tags['country_code'];
+    const c=String(raw||'').trim().toUpperCase();return /^[A-Z]{2}$/.test(c)?c:null;
+  }
   function intendedCountrySequence(route,stations){
     const out=[];
     const add=c=>{c=String(c||'').toUpperCase();if(c&&(!out.length||out[out.length-1]!==c))out.push(c)};
@@ -239,10 +244,19 @@
       pool=pool.filter(x=>x.verified&&Number.isFinite(x.priceEur));
       if(!pool.length)continue;
       // Border logic must not force a silly top-up while the tank is still nearly full.
+      const normalStart=Math.max(0,ctx.safeKm-NORMAL_ZONE_KM);
       const viable=pool.filter(x=>{
         const fill=plannedFillLitres(ctx.tank,ctx.fuel,ctx.avg,x.along);
         const saving=t.absDiff*fill;
+        const arrival=fuelAtArrival(ctx.fuel,ctx.avg,x.along);
         const enoughFill=fill>=ctx.tank*BORDER_MIN_FILL_FRACTION;
+        if(x.along<normalStart){
+          // Before the normal refuel window we apply the same discipline as an early stop:
+          // normally at most half a tank may remain. Only an exceptional, verified saving may override it.
+          const halfTankRule=arrival<=ctx.tank*EARLY_MAX_TANK_FRACTION;
+          const exceptional=t.absDiff>=EXCEPTIONAL_DIFF_EUR&&saving>=EXCEPTIONAL_SAVING_EUR;
+          return (halfTankRule||exceptional)&&enoughFill&&saving>=BORDER_MIN_SAVING_EUR;
+        }
         return enoughFill||saving>=BORDER_MIN_SAVING_EUR;
       });
       if(!viable.length)continue;
@@ -393,14 +407,14 @@
       stations.forEach(x=>{x.priceEur=eurPrice(x,fx)});
       let prePool=stations.filter(x=>Number.isFinite(x.priceEur));
       if(window.ManniPriceSanity?.nationalAvg){
-        prePool=prePool.filter(x=>{const avgN=window.ManniPriceSanity.nationalAvg(x.country);return !Number.isFinite(avgN)||x.priceEur>=avgN*0.80});
+        prePool=prePool.filter(x=>{const avgN=window.ManniPriceSanity.nationalAvg(x.country);return !Number.isFinite(avgN)||x.priceEur>=avgN*0.90});
       }
       if(!prePool.length)throw new Error('V dosegu ni kandidatov z verodostojno ceno.');
       const verifySet=preliminaryShortlist(prePool,{safeKm,extendedKm});
       ui.status.textContent=`Preverjam ${verifySet.length} najpomembnejših lokacij …`;
       const evidence=await verifyShortlist(verifySet);
       const verifyMeta=evidence._meta||{cached:0,liveBatches:0,totalBatches:0};
-      verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0});
+      verifySet.forEach(s=>{const e=evidence.get(s.id)||{};s.verifyStatus=e.status||'unverified';s.verified=s.verifyStatus==='verified';s.motorway=e.motorway;s.osmDistanceKm=e.distanceKm;s.verifyScore=e.score||0;s.osm=e.osm||null;const c=osmCountry(e.osm);if(c)s.country=c});
       const verifiedStations=verifySet.filter(x=>x.verified);
       if(!verifiedStations.length)throw new Error('Preverjanje lokacij trenutno ni potrdilo nobene od najpomembnejših črpalk. Poskusi Osveži čez nekaj sekund.');
       const currencies=[...new Set(verifiedStations.map(x=>x.currency))];
@@ -408,9 +422,10 @@
       let rankingPool=verifiedStations.filter(x=>Number.isFinite(x.priceEur));
       if(window.ManniPriceSanity){
         const sane=window.ManniPriceSanity.sanitizeVerifiedCandidates(rankingPool);
-        rankingPool=sane.visible||rankingPool;
+        rankingPool=Array.isArray(sane.visible)?sane.visible:rankingPool;
         if(sane.hidden?.length)console.info('Smart Fuel: izločene sumljive cene',sane.hidden.map(x=>({name:x.name,price:x.price,currency:x.currency,deviation:x.priceDeviation})));
       }
+      if(!rankingPool.length)throw new Error('Vsi preverjeni kandidati imajo trenutno sumljivo ceno in so bili izločeni.');
       const missingFx=currencies.filter(c=>c!=='EUR'&&!Number.isFinite(fx[c]));
       const countrySequence=intendedCountrySequence(route,prePool);
       const picked=pickRecommendations(rankingPool,{tank,fuel,avg,safeKm,extendedKm,countrySequence});
